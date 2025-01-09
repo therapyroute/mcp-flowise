@@ -23,7 +23,7 @@ Flowise MCP is a Python package that implements a Model Context Protocol (MCP) s
 The easiest way to run the server is via `uvx`, which installs and executes it directly from the GitHub repository.
 
 ```bash
-uvx --from git+https://github.com/matthewhand/flowise-mcp flowise-mcp
+uvx --from git+https://github.com/matthewhand/flowise-mcp --with requests flowise-mcp
 ```
 
 ### Adding to `mcpServers` Configuration
@@ -37,7 +37,8 @@ You can integrate `flowise-mcp` into your MCP ecosystem by adding it to the `mcp
             "command": "uvx",
             "args": [
                 "--from", 
-                "git+https://github.com/matthewhand/flowise-mcp", 
+                "git+https://github.com/matthewhand/flowise-mcp",
+                "--with", "requests",
                 "flowise-mcp"
             ],
             "env": {
