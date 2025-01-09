@@ -57,7 +57,7 @@ If you prefer to run the server locally, follow these steps:
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/matthewhand/flowise-mcp.git
+   git clone https://github.com/matthewhand/mcp-flowise.git
    cd flowise-mcp
    ```
 
