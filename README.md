@@ -103,6 +103,8 @@ For local testing or deployment, follow these steps:
 - `list_chatflows() -> list`: Lists all available chatflows and assistants.
 - `create_prediction(chatflow_id: str, question: str) -> str`: Creates a prediction using the provided `chatflow_id`.
 
+![image](https://github.com/user-attachments/assets/0901ef9c-5d56-4f1e-a799-1e5d8e8343bd)
+
 ### 2. LowLevel Mode (Dynamic Tools)
 
 - Tools are dynamically created based on the `FLOWISE_CHATFLOW_DESCRIPTIONS` variable.
