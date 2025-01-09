@@ -40,7 +40,6 @@ You can integrate `mcp-flowise` into your MCP ecosystem by adding it to the `mcp
             "args": [
                 "--from", 
                 "git+https://github.com/matthewhand/mcp-flowise", 
-                "--with", "requests",
                 "mcp-flowise"
             ],
             "env": {
@@ -122,7 +121,7 @@ For local testing or deployment, follow these steps:
 ```bash
 FLOWISE_API_KEY="your_api_key" \
 FLOWISE_API_ENDPOINT="http://localhost:3000" \
-uvx --from git+https://github.com/matthewhand/mcp-flowise --with requests mcp-flowise
+uvx --from git+https://github.com/matthewhand/mcp-flowise mcp-flowise
 ```
 
 ### Locally with Python
