@@ -97,7 +97,7 @@ def run_server():
         logger.error("No FLOWISE_CHATFLOW_DESCRIPTIONS set; cannot run low-level server. Exiting.")
         sys.exit(1)
 
-    logger.info("FLOWISE_CHATFLOW_DESCRIPTIONS is set, creating dynamic tools.")
+    logger.debug("FLOWISE_CHATFLOW_DESCRIPTIONS is set, creating dynamic tools.")
     try:
         # Attempt to parse multiple chatflow_id:description pairs from CSV-like input
         pairs = [pair.strip() for pair in FLOWISE_CHATFLOW_DESCRIPTIONS.split(",")]
@@ -112,7 +112,7 @@ def run_server():
         sys.exit(1)
 
     try:
-        logger.info("Starting MCP server (Low-Level version)...")
+        logger.debug("Starting MCP server (Low-Level version)...")
         mcp.run(
             read_stream=None,  # Run on stdio by default
             write_stream=None,

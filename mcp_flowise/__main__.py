@@ -25,11 +25,11 @@ def main():
 
     FLOWISE_CHATFLOW_DESCRIPTIONS = os.getenv("FLOWISE_CHATFLOW_DESCRIPTIONS")
     if FLOWISE_CHATFLOW_DESCRIPTIONS:
-        logger.info("FLOWISE_CHATFLOW_DESCRIPTIONS is set, running Low-Level server.")
+        logger.debug("FLOWISE_CHATFLOW_DESCRIPTIONS is set, running Low-Level server.")
         from .server_lowlevel import run_server
         run_server()
     else:
-        logger.info("FLOWISE_CHATFLOW_DESCRIPTIONS is NOT set, running FastMCP server.")
+        logger.debug("FLOWISE_CHATFLOW_DESCRIPTIONS is NOT set, running FastMCP server.")
         from .server_fastmcp import run_server
         run_server()
 
