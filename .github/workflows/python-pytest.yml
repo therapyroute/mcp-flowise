@@ -1,0 +1,33 @@
+name: Python Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository
+      - uses: actions/checkout@v4
+
+      # Install uv
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        
+      # Set up Python environment with uv
+      - name: Set up Python
+        run: uv python install
+
+      # Install project dependencies
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      # Run tests
+      - name: Run tests
+        run: uv run pytest tests/unit
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
