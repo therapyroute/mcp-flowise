@@ -26,7 +26,7 @@ jobs:
 
       # Install pytest
       - name: Install pytest
-        run: uv pip install pytest
+        run: uv pip install pytest --system
         
       # Set up Python environment with uv
       - name: Set up Python
