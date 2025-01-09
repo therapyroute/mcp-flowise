@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flowise_mcp"
+version = "0.1.0"
+description = "Flowise integration via MCP"
+readme = "README.md"
+authors = [
+  { name="Matthew Hand", email="matthewhandau@gmail.com" }
+]
+dependencies = [
+  "mcp[cli]>=1.2.0"
+]
+
+[project.scripts]
+flowise-mcp = "flowise_mcp.__main__:main"
