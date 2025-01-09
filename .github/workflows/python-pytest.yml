@@ -22,7 +22,15 @@ jobs:
 
       # Install uv
       - name: Install uv
-        run: pip install uvicorn astral-sh uv-cli pytest
+        uses: astral-sh/setup-uv@v4
+
+      # Install pytest
+      - name: Install pytest
+        run: uv pip install pytest
+        
+      # Set up Python environment with uv
+      - name: Set up Python
+        run: uv python install
 
       # Sync dependencies with uv
       - name: Install dependencies
