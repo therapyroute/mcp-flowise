@@ -3,16 +3,17 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "flowise_mcp"
+name = "mcp-flowise"
 version = "0.1.0"
-description = "Flowise integration via MCP"
+description = "MCP integration with the Flowise API for creating predictions and managing chatflows/assistants"
 readme = "README.md"
 authors = [
-  { name="Matthew Hand", email="matthewhandau@gmail.com" }
+  { name = "Matthew Hand", email = "matthewhandau@gmail.com" }
 ]
 dependencies = [
-  "mcp[cli]>=1.2.0"
+  "mcp[cli]>=1.2.0",
+  "requests>=2.25.0"
 ]
 
 [project.scripts]
-flowise-mcp = "flowise_mcp.__main__:main"
+mcp-flowise = "mcp_flowise.__main__:main"
