@@ -15,6 +15,23 @@ FLOWISE_API_ENDPOINT = os.getenv("FLOWISE_API_ENDPOINT", "http://localhost:3000"
 
 logger = logging.getLogger(__name__)
 
+def redact_api_key(key: str) -> str:
+    """
+    Redacts the Flowise API key for safe logging output.
+
+    Args:
+        key (str): The API key to redact.
+
+    Returns:
+        str: The redacted API key.
+    """
+    if len(key) > 4:
+        return f"{key[:2]}{'*' * (len(key) - 4)}{key[-2:]}"
+    return "<not set>"
+
+logger.debug(f"Flowise API Key (redacted): {redact_api_key(FLOWISE_API_KEY)}")
+logger.debug(f"Flowise API Endpoint: {FLOWISE_API_ENDPOINT}")
+
 def flowise_predict(chatflow_id: str, question: str) -> str:
     """
     Sends a question to a specific chatflow ID via the Flowise API and returns the response text.
