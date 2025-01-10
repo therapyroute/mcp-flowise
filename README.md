@@ -1,6 +1,7 @@
 # mcp-flowise
 
 `mcp-flowise` is a Python package that implements a Model Context Protocol (MCP) server integrating with the Flowise API. It provides a streamlined way to create predictions, list chatflows, and manage assistants in a standardized and flexible manner. It supports two operation modes:
+
 - **FastMCP Mode**: Exposes `list_chatflows` and `create_prediction` tools with minimal configuration.
 - **LowLevel Mode**: Dynamically creates tools for each chatflow or assistant, requiring descriptions for each.
 
@@ -9,7 +10,7 @@
 - **Authentication**: Interact securely with the Flowise API using Bearer tokens.
 - **Dynamic Tool Exposure**: Exposes tools based on configuration, either as generalized tools (FastMCP) or dynamically created tools (LowLevel).
 - **Flexible Deployment**: Can be run directly or integrated into larger MCP workflows using `uvx`.
-- **Environment Configuration**: Manage sensitive configurations through `.env` files or environment variables.
+- **Environment Configuration**: Manage sensitive configurations through environment variables (e.g., `.env` files).
 
 ## Installation
 
@@ -22,7 +23,7 @@
 
 ### Using `uvx` from GitHub
 
-The easiest way to run the server is via `uvx`, which installs and executes the package directly from the GitHub repository.
+The easiest way to run the server is via `uvx`, which installs and executes the package directly from the GitHub repository:
 
 ```bash
 uvx --from git+https://github.com/matthewhand/mcp-flowise mcp-flowise
@@ -30,7 +31,7 @@ uvx --from git+https://github.com/matthewhand/mcp-flowise mcp-flowise
 
 ### Adding to MCP Ecosystem (`mcpServers` Configuration)
 
-You can integrate `mcp-flowise` into your MCP ecosystem by adding it to the `mcpServers` configuration. Example configuration:
+You can integrate `mcp-flowise` into your MCP ecosystem by adding it to the `mcpServers` configuration. Example:
 
 ```json
 {
@@ -38,8 +39,8 @@ You can integrate `mcp-flowise` into your MCP ecosystem by adding it to the `mcp
         "mcp-flowise": {
             "command": "uvx",
             "args": [
-                "--from", 
-                "git+https://github.com/matthewhand/mcp-flowise", 
+                "--from",
+                "git+https://github.com/matthewhand/mcp-flowise",
                 "mcp-flowise"
             ],
             "env": {
@@ -51,49 +52,61 @@ You can integrate `mcp-flowise` into your MCP ecosystem by adding it to the `mcp
 }
 ```
 
-### Running Locally with `.env`
+## Running on Windows with `uvx`
 
-For local testing or deployment, follow these steps:
+If you're using `uvx` on Windows and encounter issues with `--from git+https`, the recommended solution is to clone the repository locally and configure the `mcpServers` with the full path to `uvx.exe` and the cloned repository. Additionally, include `APPDATA`, `LOGLEVEL`, and other environment variables as required.
 
-1. Clone the repository:
+### Example Configuration for MCP Ecosystem (`mcpServers` on Windows)
 
-   ```bash
-   git clone https://github.com/matthewhand/mcp-flowise.git
-   cd mcp-flowise
-   ```
+```json
+{
+  "mcpServers": {
+    "flowise": {
+      "command": "C:\\Users\\matth\\.local\\bin\\uvx.exe",
+      "args": [
+        "--from",
+        "C:\\Users\\matth\\downloads\\mcp-flowise",
+        "mcp-flowise"
+      ],
+      "env": {
+        "LOGLEVEL": "ERROR",
+        "APPDATA": "C:\\Users\\matth\\AppData\\Roaming",
+        "FLOWISE_API_KEY": "your-api-key-goes-here",
+        "FLOWISE_API_ENDPOINT": "http://localhost:3000/"
+      }
+    }
+  }
+}
+```
 
-2. Set up environment variables:
+### Notes
 
-   - Copy `.env.example` to `.env`:
+- **Full Paths**: Use full paths for both `uvx.exe` and the cloned repository.
+- **Environment Variables**: Point `APPDATA` to your Windows user profile (e.g., `C:\\Users\\<username>\\AppData\\Roaming`) if needed.
+- **Log Level**: Adjust `LOGLEVEL` as needed (`ERROR`, `INFO`, `DEBUG`, etc.).
 
-     ```bash
-     cp .env.example .env
-     ```
+## Environment Variables
 
-   - Edit the `.env` file and set the following variables:
+`mcp-flowise` relies on a few key environment variables:
 
-     **Required Variables**:
-     - `FLOWISE_API_KEY`: Your Flowise API Bearer token.
-     - `FLOWISE_API_ENDPOINT`: The base URL of your Flowise API (default: `http://localhost:3000`).
+- `FLOWISE_API_KEY`: Your Flowise API Bearer token. (**Required**)
+- `FLOWISE_API_ENDPOINT`: Base URL for Flowise (default: `http://localhost:3000`). (**Required**)
 
-     **Optional Variables**:
-     - `FLOWISE_CHATFLOW_ID`: A specific Chatflow ID to use (FastMCP mode).
-     - `FLOWISE_ASSISTANT_ID`: A specific Assistant ID to use (FastMCP mode).
-     - `FLOWISE_CHATFLOW_DESCRIPTIONS`: Comma-separated list of chatflows and descriptions for LowLevel mode.
+Depending on which mode you use:
 
-     **Important**: If both `FLOWISE_CHATFLOW_ID` and `FLOWISE_ASSISTANT_ID` are set, the server will refuse to start.
+- **FastMCP Mode** (Default):
+  - `FLOWISE_CHATFLOW_ID`: Single Chatflow ID (optional).
+  - `FLOWISE_ASSISTANT_ID`: Single Assistant ID (optional).
+  - `FLOWISE_CHATFLOW_WHITELIST`: Comma-separated list of allowed chatflow IDs (optional).
+  - `FLOWISE_CHATFLOW_BLACKLIST`: Comma-separated list of denied chatflow IDs (optional).
 
-3. Install dependencies:
+- **LowLevel Mode**:
+  - `FLOWISE_CHATFLOW_DESCRIPTIONS`: A comma-separated list of `chatflow_id:Description` pairs. Example:
+    ```
+    FLOWISE_CHATFLOW_DESCRIPTIONS="abc123:My Chatflow,hijk456:Another Chatflow"
+    ```
 
-   ```bash
-   pip install -e .
-   ```
-
-4. Run the server:
-
-   ```bash
-   mcp-flowise
-   ```
+> **Important**: If both `FLOWISE_CHATFLOW_ID` and `FLOWISE_ASSISTANT_ID` are set, the server will refuse to start.
 
 ## Configuration Scenarios
 
@@ -109,8 +122,8 @@ For local testing or deployment, follow these steps:
 
 - Tools are dynamically created based on the `FLOWISE_CHATFLOW_DESCRIPTIONS` variable.
 - Each chatflow or assistant is exposed as a separate tool.
-- **Example**:
-  - `predict_mock_chatflow_id(question: str) -> str`
+- **Example**:  
+  `predict_mock_chatflow_id(question: str) -> str`
 
 ### 3. Both `FLOWISE_CHATFLOW_ID` and `FLOWISE_ASSISTANT_ID` Set
 
@@ -134,11 +147,9 @@ export FLOWISE_API_ENDPOINT="http://localhost:3000"
 python -m mcp_flowise
 ```
 
----
-
 ## Security
 
-- **Protect Your `.env` File**: Ensure that your `.env` file is **never** committed to version control. Add `.env` to your `.gitignore` to prevent accidental exposure of sensitive information like API keys.
+- **Protect Your Credentials**: Ensure that environment variables or `.env` files containing API keys are **never** committed to version control. Add `.env` to your `.gitignore` if necessary.
 
 ```gitignore
 # .gitignore

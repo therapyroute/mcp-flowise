@@ -120,8 +120,7 @@ def run_server():
                 server_name="FlowiseMCP-with-EnvAuth",
                 server_version="0.1.0",
                 capabilities=types.ServerCapabilities(),
-            ),
-            transport="stdio",
+            )
         )
     except Exception as e:
         logger.error(f"Unhandled exception in Low-Level MCP server: {e}", exc_info=True)
