@@ -111,20 +111,24 @@ def run_server():
         logger.error(f"Invalid FLOWISE_CHATFLOW_DESCRIPTIONS format: {e}")
         sys.exit(1)
 
-    try:
-        logger.debug("Starting MCP server (Low-Level version)...")
-        mcp.run(
-            read_stream=None,  # Run on stdio by default
-            write_stream=None,
-            initialization_options=InitializationOptions(
-                server_name="FlowiseMCP-with-EnvAuth",
-                server_version="0.1.0",
-                capabilities=types.ServerCapabilities(),
+    async def start_server():
+        try:
+            logger.debug("Starting MCP server (Low-Level version)...")
+            await mcp.run(
+                read_stream=None,  # Run on stdio by default
+                write_stream=None,
+                initialization_options=InitializationOptions(
+                    server_name="FlowiseMCP-with-EnvAuth",
+                    server_version="0.1.0",
+                    capabilities=types.ServerCapabilities(),
+                )
             )
-        )
-    except Exception as e:
-        logger.error(f"Unhandled exception in Low-Level MCP server: {e}", exc_info=True)
-        sys.exit(1)
+        except Exception as e:
+            logger.error(f"Unhandled exception in Low-Level MCP server: {e}", exc_info=True)
+            sys.exit(1)
+
+    # Run the async function in the event loop
+    asyncio.run(start_server())
 
 if __name__ == "__main__":
     run_server()
