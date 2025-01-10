@@ -1,54 +1,78 @@
-import pytest
-from mcp_flowise.utils import fetch_chatflows, flowise_predict
+import unittest
+from unittest.mock import patch, Mock
+import requests
+from mcp_flowise.utils import redact_api_key, flowise_predict, fetch_chatflows
 
+class TestUtils(unittest.TestCase):
 
-@pytest.fixture
-def mock_flowise_endpoint(monkeypatch):
-    """Mock the Flowise API endpoint for fetch_chatflows."""
-    def mock_get(*args, **kwargs):
-        class MockResponse:
-            def raise_for_status(self):
-                pass  # Simulate successful HTTP status
-            @staticmethod
-            def json():
-                return [
-                    {"id": "mock-id-1", "name": "Mock Chatflow 1"},
-                    {"id": "mock-id-2", "name": "Mock Chatflow 2"}
-                ]
-        return MockResponse()
+    def test_redact_api_key(self):
+        """
+        Test redaction of API keys.
+        """
+        self.assertEqual(redact_api_key("1234567890"), "12******90")
+        self.assertEqual(redact_api_key("abcd"), "<not set>")  # Short key expected behavior.
+        self.assertEqual(redact_api_key("xy"), "<not set>")
+        self.assertEqual(redact_api_key(""), "<not set>")
+        self.assertEqual(redact_api_key(None), "<not set>")
 
-    monkeypatch.setattr("requests.get", mock_get)
+    @patch("requests.post")
+    def test_flowise_predict_success(self, mock_post):
+        """
+        Test successful prediction response.
+        """
+        mock_post.return_value = Mock(status_code=200, text="Mock Prediction")
+        response = flowise_predict("valid_chatflow_id", "What's AI?")
+        self.assertEqual(response, "Mock Prediction")
+        mock_post.assert_called_once()
 
+    @patch("requests.post", side_effect=requests.Timeout)
+    def test_flowise_predict_timeout(self, mock_post):
+        """
+        Test prediction handling of timeout.
+        """
+        response = flowise_predict("valid_chatflow_id", "What's AI?")
+        self.assertIn("Error:", response)
+        mock_post.assert_called_once()
 
-def test_fetch_chatflows(mock_flowise_endpoint):
-    """Test the fetch_chatflows utility function."""
-    result = fetch_chatflows()
-    assert isinstance(result, list)
-    assert len(result) == 2
-    assert result[0]["id"] == "mock-id-1"
-    assert result[0]["name"] == "Mock Chatflow 1"
+    @patch("requests.post")
+    def test_flowise_predict_http_error(self, mock_post):
+        """
+        Test prediction handling of HTTP errors.
+        """
+        mock_post.return_value = Mock(status_code=500, raise_for_status=Mock(side_effect=requests.HTTPError("500 Error")))
+        response = flowise_predict("valid_chatflow_id", "What's AI?")
+        self.assertIn("Error:", response)
+        mock_post.assert_called_once()
 
+    @patch("requests.get")
+    def test_fetch_chatflows_success(self, mock_get):
+        """
+        Test successful chatflow fetching.
+        """
+        mock_get.return_value = Mock(status_code=200, json=Mock(return_value=[
+            {"id": "chatflow1", "name": "Chatflow One"},
+            {"id": "chatflow2", "name": "Chatflow Two"},
+        ]))
+        chatflows = fetch_chatflows()
+        self.assertEqual(len(chatflows), 2)
+        self.assertEqual(chatflows[0]["id"], "chatflow1")
+        mock_get.assert_called_once()
 
-def test_flowise_predict(monkeypatch):
-    """Test the flowise_predict utility function."""
-    def mock_post(*args, **kwargs):
-        class MockResponse:
-            def raise_for_status(self):
-                pass  # Simulate successful HTTP status
-            @staticmethod
-            def json():
-                return {"answer": "Canberra"}
-            @property
-            def status_code(self):
-                return 200
-            @property
-            def text(self):
-                return '{"answer": "Canberra"}'
+    @patch("requests.get", side_effect=requests.ConnectionError("Connection Error"))
+    def test_fetch_chatflows_connection_error(self, mock_get):
+        """
+        Test chatflow fetching connection error.
+        """
+        chatflows = fetch_chatflows()
+        self.assertEqual(chatflows, [])
+        mock_get.assert_called_once()
 
-        return MockResponse()
-
-    monkeypatch.setattr("requests.post", mock_post)
-
-    result = flowise_predict("mock-chatflow-id", "What is the capital of Australia?")
-    assert result == '{"answer": "Canberra"}'
+    @patch("requests.get", side_effect=requests.Timeout)
+    def test_fetch_chatflows_timeout(self, mock_get):
+        """
+        Test chatflow fetching timeout.
+        """
+        chatflows = fetch_chatflows()
+        self.assertEqual(chatflows, [])
+        mock_get.assert_called_once()
 

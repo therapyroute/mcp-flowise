@@ -25,9 +25,10 @@ def redact_api_key(key: str) -> str:
     Returns:
         str: The redacted API key.
     """
-    if len(key) > 4:
-        return f"{key[:2]}{'*' * (len(key) - 4)}{key[-2:]}"
-    return "<not set>"
+    if not key or len(key) <= 4:
+        return "<not set>"
+    return f"{key[:2]}{'*' * (len(key) - 4)}{key[-2:]}"
+
 
 logger.debug(f"Flowise API Key (redacted): {redact_api_key(FLOWISE_API_KEY)}")
 logger.debug(f"Flowise API Endpoint: {FLOWISE_API_ENDPOINT}")
