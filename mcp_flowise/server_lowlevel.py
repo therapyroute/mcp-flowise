@@ -6,15 +6,19 @@ the FLOWISE_CHATFLOW_DESCRIPTIONS environment variable.
 """
 
 import os
+import re
 import sys
 import logging
 import asyncio
 from dotenv import load_dotenv
+from mcp import types
 from mcp.server.lowlevel import Server
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
-from mcp import types
-from .utils import flowise_predict, redact_api_key
+from mcp_flowise.utils import flowise_predict, redact_api_key
+
+# Global mapping for tool name to chatflow ID
+NAME_TO_ID_MAPPING = {}
 
 # Load environment variables from .env if present
 load_dotenv()
@@ -30,6 +34,13 @@ logger = logging.getLogger(__name__)
 
 # Initialize the Low-Level MCP Server
 mcp = Server("FlowiseMCP-with-EnvAuth")
+
+
+def normalize_tool_name(name):
+    """
+    Normalize tool names to lowercase and replace non-alphanumeric characters with underscores.
+    """
+    return re.sub(r"[^a-zA-Z0-9]", "_", name).lower()
 
 
 def validate_server_env():
@@ -53,37 +64,32 @@ def validate_server_env():
     return chatflow_descriptions, api_key, endpoint
 
 
-def create_prediction_tool(chatflow_id: str, description: str):
+def create_prediction_tool(chatflow_id: str, description: str, name: str):
     """
-    Dynamically creates a tool that makes predictions for a specific chatflow_id.
+    Create a tool dynamically for a given chatflow.
     """
+    normalized_name = normalize_tool_name(name)
+    NAME_TO_ID_MAPPING[normalized_name] = chatflow_id
+
     async def create_prediction_dynamic(request: types.CallToolRequest) -> types.ServerResult:
-        question = request.params.arguments.get("question")
-        if not question:
-            return types.ServerResult(
-                types.CallToolResult(
-                    content=[types.TextContent(type="text", text='Missing "question" argument')]
-                )
-            )
-        result = flowise_predict(chatflow_id, question)
-        return types.ServerResult(
-            types.CallToolResult(content=[types.TextContent(type="text", text=result)])
-        )
+        if "question" not in request.params.arguments:
+            return types.ServerResult(root=types.CallToolResult(content=[types.TextContent(type="text", text='Missing "question" argument')]))
+        question = request.params.arguments["question"]
+        mapped_chatflow_id = NAME_TO_ID_MAPPING.get(normalized_name)
+        result = flowise_predict(mapped_chatflow_id, question)
+        return types.ServerResult(root=types.CallToolResult(content=[types.TextContent(type="text", text=result)]))
 
     mcp.request_handlers[types.CallToolRequest] = create_prediction_dynamic
 
     tool = types.Tool(
-        name=f"predict_{chatflow_id.replace('-', '_')}",
+        name=normalized_name,
         description=description,
-        inputSchema={
-            "type": "object",
-            "required": ["question"],
-            "properties": {"question": {"type": "string"}},
-        },
+        inputSchema={"type": "object", "required": ["question"], "properties": {"question": {"type": "string"}}},
     )
 
     async def list_tools_dynamic(request: types.ListToolsRequest) -> types.ServerResult:
-        return types.ServerResult(types.ListToolsResult(tools=[tool]))
+        tools = [tool]
+        return types.ServerResult(root=types.ListToolsResult(tools=tools))
 
     mcp.request_handlers[types.ListToolsRequest] = list_tools_dynamic
 
@@ -100,7 +106,7 @@ def run_server():
             if ":" not in pair:
                 raise ValueError(f"Invalid pair format: '{pair}'")
             chatflow_id, description = map(str.strip, pair.split(":", 1))
-            create_prediction_tool(chatflow_id, description)
+            create_prediction_tool(chatflow_id, description, description)
     except Exception as e:
         logger.error(f"Invalid FLOWISE_CHATFLOW_DESCRIPTIONS format: {e}")
         sys.exit(1)

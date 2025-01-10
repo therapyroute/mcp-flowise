@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 from mcp import types
-from mcp_flowise.server_lowlevel import create_prediction_tool, validate_server_env, mcp
+from mcp_flowise.server_lowlevel import create_prediction_tool, validate_server_env, normalize_tool_name, NAME_TO_ID_MAPPING, mcp
 
 
 class TestServerLowLevel(unittest.IsolatedAsyncioTestCase):
@@ -11,10 +11,10 @@ class TestServerLowLevel(unittest.IsolatedAsyncioTestCase):
         """
         Test dynamic tool creation with a valid chatflow ID and description.
         """
-        create_prediction_tool("mock_chatflow_id", "Mock description")
+        create_prediction_tool("mock_chatflow_id", "Mock description", "MockTool")
         request = types.CallToolRequest(
             method="tools/call",
-            params=types.CallToolRequestParams(name="predict_mock_chatflow_id", arguments={"question": "What is AI?"}),
+            params=types.CallToolRequestParams(name="mocktool", arguments={"question": "What is AI?"}),
         )
         handler = mcp.request_handlers[types.CallToolRequest]
         response = await handler(request)
@@ -27,10 +27,10 @@ class TestServerLowLevel(unittest.IsolatedAsyncioTestCase):
         """
         Test error handling when 'question' is missing in request.
         """
-        create_prediction_tool("mock_chatflow_id", "Mock description")
+        create_prediction_tool("mock_chatflow_id", "Mock description", "MockTool")
         request = types.CallToolRequest(
             method="tools/call",
-            params=types.CallToolRequestParams(name="predict_mock_chatflow_id", arguments={}),
+            params=types.CallToolRequestParams(name="mocktool", arguments={}),
         )
         handler = mcp.request_handlers[types.CallToolRequest]
         response = await handler(request)
@@ -45,3 +45,18 @@ class TestServerLowLevel(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(descriptions, "mock_chatflow_id:Mock description")
         self.assertEqual(api_key, "")
         self.assertEqual(endpoint, "http://localhost:3000")
+
+    def test_tool_name_normalization(self):
+        """
+        Test normalization of tool names.
+        """
+        normalized = normalize_tool_name("2024-09-26 Chat Zep-Groq")
+        self.assertEqual(normalized, "2024_09_26_chat_zep_groq")
+
+    def test_name_to_id_mapping(self):
+        """
+        Test the mapping of normalized names to chatflow IDs.
+        """
+        create_prediction_tool("unique_chatflow_id", "Human-readable description", "2024-09-26 Chat Zep-Groq")
+        self.assertIn("2024_09_26_chat_zep_groq", NAME_TO_ID_MAPPING)
+        self.assertEqual(NAME_TO_ID_MAPPING["2024_09_26_chat_zep_groq"], "unique_chatflow_id")
