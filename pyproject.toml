@@ -17,3 +17,8 @@ dependencies = [
 
 [project.scripts]
 mcp-flowise = "mcp_flowise.__main__:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.4",
+]
