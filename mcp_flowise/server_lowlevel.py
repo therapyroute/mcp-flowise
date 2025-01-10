@@ -68,6 +68,11 @@ def create_prediction_tool(chatflow_id: str, description: str, name: str):
     """
     Create a tool dynamically for a given chatflow.
     """
+    # Validate the original name before normalization
+    if not re.match(r"^[a-zA-Z0-9_]+$", name):
+        raise ValueError(f"Invalid tool name '{name}'. Only alphanumeric and underscores are allowed.")
+    
+    # Normalize the name for tool registration
     normalized_name = normalize_tool_name(name)
     NAME_TO_ID_MAPPING[normalized_name] = chatflow_id
 
