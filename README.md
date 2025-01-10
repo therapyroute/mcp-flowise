@@ -163,6 +163,12 @@ python -m mcp_flowise
 - **Invalid Chatflow**: Providing an invalid `chatflow_id` will result in an error.
 - **Missing Descriptions**: In LowLevel mode, all chatflows must have valid descriptions.
 
+## TODO
+
+- [x] Claude desktop integration
+- [x] Fastmcp mode
+- [ ] Lowlevel mode
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
