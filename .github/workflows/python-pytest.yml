@@ -34,7 +34,7 @@ jobs:
 
       # Sync dependencies with uv
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync
 
       # Run tests
       - name: Run tests
