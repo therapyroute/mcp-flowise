@@ -4,47 +4,74 @@ Unit tests for the low-level server logic in mcp_flowise.
 
 import unittest
 from unittest.mock import patch
-from mcp_flowise.server_lowlevel import validate_server_env, create_prediction_tool
+from mcp_flowise.server_lowlevel import parse_chatflow_descriptions, create_prediction_tool, normalize_tool_name
 
 
-class TestServerLowLevelAdditional(unittest.TestCase):
+class TestServerLowLevel(unittest.TestCase):
     """
-    Additional tests for server low-level logic.
+    Unit tests for server_lowlevel module functions.
     """
-
-    # @patch("os.getenv")
-    # def test_validate_env_invalid_description_format(self, mock_getenv):
-    #     """
-    #     Test server environment validation with invalid FLOWISE_CHATFLOW_DESCRIPTIONS format.
-    #     """
-    #     mock_getenv.side_effect = lambda key, default=None: "invalid_format" if key == "FLOWISE_CHATFLOW_DESCRIPTIONS" else default
-    #     with self.assertRaises(SystemExit):
-    #         validate_server_env()
 
     @patch("os.getenv")
-    def test_validate_env_missing_description(self, mock_getenv):
+    def test_parse_chatflow_descriptions_valid(self, mock_getenv):
         """
-        Test server environment validation with missing FLOWISE_CHATFLOW_DESCRIPTIONS.
+        Test parsing of valid FLOWISE_CHATFLOW_DESCRIPTIONS.
         """
-        mock_getenv.side_effect = lambda key, default=None: None if key == "FLOWISE_CHATFLOW_DESCRIPTIONS" else default
-        with self.assertRaises(SystemExit):
-            validate_server_env()
+        mock_getenv.return_value = (
+            "example_id:example_description,another_id:another_description"
+        )
 
-    def test_create_tool_invalid_name(self):
-        """
-        Test dynamic tool creation with invalid tool name (non-alphanumeric characters).
-        """
-        invalid_name = "Invalid@Name!"
-        with self.assertRaises(ValueError) as context:
-            create_prediction_tool("mock_chatflow_id", "Mock description", invalid_name)
-        self.assertIn("Invalid tool name", str(context.exception))
+        expected = [
+            {"id": "example_id", "description": "example_description"},
+            {"id": "another_id", "description": "another_description"},
+        ]
+        result = parse_chatflow_descriptions()
+        self.assertEqual(result, expected)
 
-    def test_create_tool_valid_name(self):
+    @patch("os.getenv")
+    def test_parse_chatflow_descriptions_invalid(self, mock_getenv):
         """
-        Test dynamic tool creation with a valid name.
+        Test parsing of invalid FLOWISE_CHATFLOW_DESCRIPTIONS.
         """
-        valid_name = "valid_tool_name"
-        try:
-            create_prediction_tool("mock_chatflow_id", "Mock description", valid_name)
-        except Exception as e:
-            self.fail(f"create_prediction_tool raised an unexpected exception: {e}")
+        mock_getenv.return_value = "invalid_format"
+        with self.assertRaises(ValueError):
+            parse_chatflow_descriptions()
+
+    @patch("os.getenv")
+    def test_parse_chatflow_descriptions_empty(self, mock_getenv):
+        """
+        Test parsing when FLOWISE_CHATFLOW_DESCRIPTIONS is not set.
+        """
+        mock_getenv.return_value = None
+        with self.assertRaises(ValueError):
+            parse_chatflow_descriptions()
+
+    def test_create_prediction_tool(self):
+        """
+        Test creation of a prediction tool.
+        """
+        chatflow_id = "example_id"
+        description = "example_description"
+
+        # Call the function
+        tool = create_prediction_tool(chatflow_id, description)
+
+        # Assertions
+        expected_name = normalize_tool_name(description)
+        self.assertEqual(tool.name, expected_name)
+        self.assertEqual(tool.description, description)
+        self.assertIn("question", tool.inputSchema["properties"])
+
+    def test_create_prediction_tool_invalid_name(self):
+        """
+        Test creation of a tool with invalid characters in chatflow_id.
+        """
+        invalid_chatflow_id = "invalid@id!"
+        description = "Mock Description"
+
+        with self.assertRaises(ValueError):
+            create_prediction_tool(invalid_chatflow_id, description)
+
+
+if __name__ == "__main__":
+    unittest.main()
