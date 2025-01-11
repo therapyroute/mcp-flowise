@@ -5,6 +5,8 @@
 - **FastMCP Mode**: Exposes `list_chatflows` and `create_prediction` tools with minimal configuration.
 - **LowLevel Mode**: Dynamically creates tools for each chatflow or assistant, requiring descriptions for each.
 
+<a href="https://glama.ai/mcp/servers/h3cdir1w9a"><img width="380" height="200" src="https://glama.ai/mcp/servers/h3cdir1w9a/badge" alt="mcp-flowise MCP server" /></a>
+
 ## Features
 
 - **Authentication**: Interact securely with the Flowise API using Bearer tokens.
