@@ -34,28 +34,25 @@ logger = logging.getLogger(__name__)
 
 def setup_logging(debug: bool = False, log_dir: str = "logs", log_file: str = "debug-mcp-flowise.log") -> logging.Logger:
     """
-    Sets up logging for the application.
-
-    Args:
-        debug (bool): Whether to enable debug-level logging.
-        log_dir (str): Directory where the log files will be stored.
-        log_file (str): Name of the log file.
-
-    Returns:
-        logging.Logger: Configured logger instance.
+    Sets up logging for the application, including outputting CRITICAL and ERROR logs to stdout.
     """
     # Ensure the logs directory exists
     os.makedirs(log_dir, exist_ok=True)
     log_path = os.path.join(log_dir, log_file)
 
-    # Configure logging to file and console
+    # Create handlers
+    file_handler = logging.FileHandler(log_path, mode="a")
+    stdout_handler = logging.StreamHandler(sys.stdout)
+
+    # Set log levels
+    stdout_handler.setLevel(logging.ERROR)  # Only output ERROR and CRITICAL logs to stdout
+    file_handler.setLevel(logging.DEBUG if debug else logging.INFO)
+
+    # Configure logging
     logging.basicConfig(
         level=logging.DEBUG if debug else logging.INFO,
-        format="[%(levelname)s] %(asctime)s - %(name)s - %(message)s",
-        handlers=[
-            logging.FileHandler(log_path, mode="a"),  # Append logs to the file
-            logging.StreamHandler(sys.stdout),       # Also output logs to the console
-        ],
+        format="[%(levelname)s] %(asctime)s - %(message)s",
+        handlers=[file_handler, stdout_handler],
     )
 
     logger = logging.getLogger(__name__)
