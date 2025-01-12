@@ -171,7 +171,9 @@ python -m mcp_flowise
 
 - [x] Claude desktop integration
 - [x] Fastmcp mode
-- [x] Lowlevel mode
+- [ ] Lowlevel mode
+ - [x] Register chatflows as tools
+ - [ ] Call registered chatflows
 
 ## License
 
