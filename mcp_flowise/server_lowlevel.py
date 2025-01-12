@@ -1,11 +1,13 @@
 '''
 Low-Level Server for the Flowise MCP.
 
-This server dynamically registers tools based on the provided chatflows in 
-the FLOWISE_CHATFLOW_DESCRIPTIONS environment variable.
+This server dynamically registers tools based on the provided chatflows
+retrieved from the Flowise API. Tool names are normalized for safety 
+and consistency, and potential conflicts are logged.
 
-Each chatflow is described in the format:
-    "chatflow_id1:description1,chatflow_id2:description2,..."
+Chatflows are retrieved dynamically and their names are used as tool
+descriptions. Conflicts in tool names after normalization are handled
+gracefully by skipping those chatflows.
 '''
 
 import os
@@ -18,7 +20,7 @@ from mcp import types
 from mcp.server.lowlevel import Server
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
-from mcp_flowise.utils import flowise_predict, redact_api_key, setup_logging
+from mcp_flowise.utils import flowise_predict, fetch_chatflows, normalize_tool_name, setup_logging
 
 # Load environment variables from .env if present
 load_dotenv()
@@ -33,135 +35,6 @@ NAME_TO_ID_MAPPING = {}
 # Initialize the Low-Level MCP Server
 mcp = Server("FlowiseMCP-with-EnvAuth")
 
-
-def parse_chatflow_descriptions() -> List[Dict[str, str]]:
-    '''
-    Parse and validate the FLOWISE_CHATFLOW_DESCRIPTIONS environment variable.
-
-    Returns:
-        List[Dict[str, str]]: A list of dictionaries containing 'id' and 'description' for each chatflow.
-
-    Raises:
-        ValueError: If the environment variable is not set or has an invalid format.
-    '''
-    FLOWISE_CHATFLOW_DESCRIPTIONS = os.getenv("FLOWISE_CHATFLOW_DESCRIPTIONS")
-    logger.debug("Retrieved FLOWISE_CHATFLOW_DESCRIPTIONS: %s", FLOWISE_CHATFLOW_DESCRIPTIONS)
-
-    if not FLOWISE_CHATFLOW_DESCRIPTIONS:
-        logger.error("FLOWISE_CHATFLOW_DESCRIPTIONS is not set.")
-        raise ValueError("FLOWISE_CHATFLOW_DESCRIPTIONS environment variable must be set.")
-
-    chatflows = []
-    pairs = FLOWISE_CHATFLOW_DESCRIPTIONS.split(",")
-
-    for pair in pairs:
-        if ":" not in pair:
-            logger.error("Invalid chatflow format detected: %s", pair)
-            raise ValueError(f"Invalid chatflow format: {pair}. Expected 'chatflow_id:description'.")
-
-        chatflow_id, description = pair.split(":", 1)
-        chatflow_id = chatflow_id.strip()
-        description = description.strip()
-
-        if not chatflow_id or not description:
-            logger.error("Empty chatflow_id or description found in pair: %s", pair)
-            raise ValueError(f"Empty chatflow_id or description in: {pair}.")
-
-        logger.debug("Parsed chatflow - ID: %s, Description: %s", chatflow_id, description)
-        chatflows.append({"id": chatflow_id, "description": description})
-
-    logger.info("Successfully parsed %d chatflows.", len(chatflows))
-    return chatflows
-
-
-def normalize_tool_name(name: str) -> str:
-    '''
-    Normalize tool names by converting to lowercase and replacing non-alphanumeric characters with underscores.
-
-    Args:
-        name (str): Original tool name.
-
-    Returns:
-        str: Normalized tool name. Returns 'unknown_tool' if the input is invalid.
-    '''
-    if not name or not isinstance(name, str):
-        logger.warning("Invalid tool name input: %s. Using default 'unknown_tool'.", name)
-        return "unknown_tool"
-    normalized = re.sub(r"[^a-zA-Z0-9]", "_", name).lower()
-    logger.debug("Normalized tool name from '%s' to '%s'", name, normalized)
-    return normalized or "unknown_tool"
-
-
-def create_prediction_tool(chatflow_id: str, description: str) -> types.Tool:
-    '''
-    Create a tool dynamically for a given chatflow.
-
-    Args:
-        chatflow_id (str): The unique ID of the chatflow.
-        description (str): The human-readable description of the chatflow.
-
-    Returns:
-        Tool: A dynamically created Tool object.
-
-    Raises:
-        ValueError: If the chatflow_id contains invalid characters or if name conflicts occur.
-    '''
-    if not re.match(r"^[a-zA-Z0-9_-]+$", chatflow_id):
-        logger.error("Invalid chatflow_id: %s. Only alphanumeric, dashes, and underscores are allowed.", chatflow_id)
-        raise ValueError(f"Invalid chatflow_id: {chatflow_id}. Only alphanumeric, dashes, and underscores are allowed.")
-
-    try:
-        normalized_name = normalize_tool_name(description)
-        if not normalized_name:
-            raise ValueError("Normalization resulted in an empty tool name.")
-    except Exception as e:
-        logger.error("Error normalizing tool name for description '%s': %s. Using a dummy name.", description, e)
-        normalized_name = f"dummy_tool_{chatflow_id}"
-
-    if not description or not description.strip():
-        logger.warning("Invalid or empty description for chatflow_id '%s'. Using a dummy description.", chatflow_id)
-        description = f"Dummy description for {chatflow_id}"
-
-    if normalized_name in NAME_TO_ID_MAPPING:
-        logger.warning(
-            "Tool name conflict: '%s' already exists for chatflow_id '%s'. New ID '%s' will not be registered.",
-            normalized_name,
-            NAME_TO_ID_MAPPING[normalized_name],
-            chatflow_id,
-        )
-        raise ValueError(f"Duplicate tool name detected for description '{description}'.")
-
-    NAME_TO_ID_MAPPING[normalized_name] = chatflow_id
-    logger.debug("Tool registered - Name: %s, ID: %s", normalized_name, chatflow_id)
-
-    try:
-        return types.Tool(
-            name=normalized_name,
-            description=description,
-            inputSchema={
-                "type": "object",
-                "required": ["question"],
-                "properties": {"question": {"type": "string"}},
-            },
-        )
-    except Exception as e:
-        logger.error(
-            "Error creating Tool object for chatflow_id '%s', description '%s': %s. Using a fallback schema.",
-            chatflow_id,
-            description,
-            e,
-        )
-        return types.Tool(
-            name=normalized_name,
-            description=description,
-            inputSchema={
-                "type": "object",
-                "properties": {},  # Fallback schema
-            },
-        )
-
-
-import json
 
 async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResult:
     '''
@@ -217,6 +90,7 @@ async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResu
 
         try:
             # Attempt to log the raw request
+            import json
             raw_request = json.dumps(request.model_dump(), indent=2) if hasattr(request, 'model_dump') else str(request)
             logger.error("Raw request causing the error: %s", raw_request)
         except Exception as log_error:
@@ -235,27 +109,57 @@ def run_server():
     Run the Low-Level Flowise server by registering tools dynamically.
     '''
     try:
-        chatflows = parse_chatflow_descriptions()
-    except ValueError as e:
+        # Fetch chatflows dynamically from the Flowise API
+        chatflows = fetch_chatflows()
+        if not chatflows:
+            raise ValueError("No chatflows retrieved from the Flowise API.")
+    except Exception as e:
         logger.critical("Failed to start server: %s", e)
         sys.exit(1)
 
     tools = []
     for chatflow in chatflows:
         try:
-            tool = create_prediction_tool(chatflow["id"], chatflow["description"])
+            # Normalize the tool name to ensure it's safe for use
+            normalized_name = normalize_tool_name(chatflow["name"])
+            
+            if normalized_name in NAME_TO_ID_MAPPING:
+                logger.warning(
+                    "Tool name conflict: '%s' already exists. Skipping chatflow '%s' (ID: '%s').",
+                    normalized_name,
+                    chatflow["name"],
+                    chatflow["id"],
+                )
+                continue
+
+            # Register the normalized name and chatflow ID
+            NAME_TO_ID_MAPPING[normalized_name] = chatflow["id"]
+
+            # Create the tool using the normalized name and original description
+            tool = types.Tool(
+                name=normalized_name,
+                description=chatflow["name"],  # Keep the original name as the description
+                inputSchema={
+                    "type": "object",
+                    "required": ["question"],
+                    "properties": {"question": {"type": "string"}},
+                },
+            )
             tools.append(tool)
-            logger.info("Registered tool: %s", tool.name)
-        except ValueError as e:
-            logger.error("Skipping tool registration for chatflow '%s': %s", chatflow["id"], e)
+            logger.info("Registered tool: %s (ID: %s)", tool.name, chatflow["id"])
+
+        except Exception as e:
+            logger.error("Error registering chatflow '%s' (ID: '%s'): %s", chatflow["name"], chatflow["id"], e)
 
     if not tools:
         logger.critical("No valid tools registered. Shutting down the server.")
         sys.exit(1)
 
+    # Register the dispatcher handler for handling tool requests
     mcp.request_handlers[types.CallToolRequest] = dispatcher_handler
     logger.debug("Registered dispatcher_handler for CallToolRequest.")
 
+    # Register the tool listing endpoint
     async def list_tools(request: types.ListToolsRequest) -> types.ServerResult:
         logger.debug("Handling list_tools request.")
         return types.ServerResult(root=types.ListToolsResult(tools=tools))
@@ -263,6 +167,7 @@ def run_server():
     mcp.request_handlers[types.ListToolsRequest] = list_tools
     logger.debug("Registered list_tools handler.")
 
+    # Start the server
     async def start_server():
         logger.info("Starting Low-Level MCP server...")
         try:

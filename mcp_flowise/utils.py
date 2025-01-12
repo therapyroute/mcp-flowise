@@ -11,6 +11,7 @@ import os
 import sys
 import logging
 import requests
+import re
 from dotenv import load_dotenv
 
 # Load environment variables from .env if present
@@ -68,6 +69,24 @@ def redact_api_key(key: str) -> str:
     if not key or len(key) <= 4:
         return "<not set>"
     return f"{key[:2]}{'*' * (len(key) - 4)}{key[-2:]}"
+
+
+def normalize_tool_name(name: str) -> str:
+    """
+    Normalize tool names by converting to lowercase and replacing non-alphanumeric characters with underscores.
+
+    Args:
+        name (str): Original tool name.
+
+    Returns:
+        str: Normalized tool name. Returns 'unknown_tool' if the input is invalid.
+    """
+    if not name or not isinstance(name, str):
+        logger.warning("Invalid tool name input: %s. Using default 'unknown_tool'.", name)
+        return "unknown_tool"
+    normalized = re.sub(r"[^a-zA-Z0-9]", "_", name).lower()
+    logger.debug("Normalized tool name from '%s' to '%s'", name, normalized)
+    return normalized or "unknown_tool"
 
 
 def flowise_predict(chatflow_id: str, question: str) -> str:

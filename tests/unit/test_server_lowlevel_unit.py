@@ -3,8 +3,11 @@ Unit tests for the low-level server logic in mcp_flowise.
 """
 
 import unittest
-from unittest.mock import patch
-from mcp_flowise.server_lowlevel import parse_chatflow_descriptions, create_prediction_tool, normalize_tool_name
+from unittest.mock import patch, MagicMock
+from mcp_flowise.server_lowlevel import  run_server, dispatcher_handler
+from mcp_flowise.utils import normalize_tool_name, fetch_chatflows
+from mcp import types
+import asyncio
 
 
 class TestServerLowLevel(unittest.TestCase):
@@ -12,65 +15,54 @@ class TestServerLowLevel(unittest.TestCase):
     Unit tests for server_lowlevel module functions.
     """
 
-    @patch("os.getenv")
-    def test_parse_chatflow_descriptions_valid(self, mock_getenv):
+    @patch("mcp_flowise.utils.fetch_chatflows")
+    @patch("mcp_flowise.server_lowlevel.mcp")
+    def test_run_server_with_no_chatflows(self, mock_mcp, mock_fetch_chatflows):
         """
-        Test parsing of valid FLOWISE_CHATFLOW_DESCRIPTIONS.
+        Test server behavior when no chatflows are fetched.
         """
-        mock_getenv.return_value = (
-            "example_id:example_description,another_id:another_description"
-        )
+        mock_fetch_chatflows.return_value = []  # Simulate no chatflows returned
+        with self.assertRaises(SystemExit):  # The server should exit
+            run_server()
 
-        expected = [
-            {"id": "example_id", "description": "example_description"},
-            {"id": "another_id", "description": "another_description"},
-        ]
-        result = parse_chatflow_descriptions()
-        self.assertEqual(result, expected)
+    @patch("mcp_flowise.server_lowlevel.NAME_TO_ID_MAPPING", {"tool_1": "id1"})
+    @patch("mcp_flowise.server_lowlevel.flowise_predict")
+    def test_dispatcher_handler_valid_request(self, mock_flowise_predict):
+        """
+        Test dispatcher handler with a valid tool request.
+        """
+        mock_flowise_predict.return_value = "Prediction result"
 
-    @patch("os.getenv")
-    def test_parse_chatflow_descriptions_invalid(self, mock_getenv):
-        """
-        Test parsing of invalid FLOWISE_CHATFLOW_DESCRIPTIONS.
-        """
-        mock_getenv.return_value = "invalid_format"
-        with self.assertRaises(ValueError):
-            parse_chatflow_descriptions()
+        request = MagicMock()
+        request.params.name = "tool_1"
+        request.params.arguments = {"question": "What is Flowise?"}
 
-    @patch("os.getenv")
-    def test_parse_chatflow_descriptions_empty(self, mock_getenv):
-        """
-        Test parsing when FLOWISE_CHATFLOW_DESCRIPTIONS is not set.
-        """
-        mock_getenv.return_value = None
-        with self.assertRaises(ValueError):
-            parse_chatflow_descriptions()
+        result = asyncio.run(dispatcher_handler(request))
+        self.assertEqual(result.root.content[0].text, "Prediction result")
 
-    def test_create_prediction_tool(self):
+    @patch("mcp_flowise.server_lowlevel.NAME_TO_ID_MAPPING", {})
+    def test_dispatcher_handler_invalid_tool(self):
         """
-        Test creation of a prediction tool.
+        Test dispatcher handler with an invalid tool name.
         """
-        chatflow_id = "example_id"
-        description = "example_description"
+        request = MagicMock()
+        request.params.name = "unknown_tool"
+        request.params.arguments = {"question": "What is Flowise?"}
 
-        # Call the function
-        tool = create_prediction_tool(chatflow_id, description)
+        result = asyncio.run(dispatcher_handler(request))
+        self.assertIn("Unknown tool requested", result.root.content[0].text)
 
-        # Assertions
-        expected_name = normalize_tool_name(description)
-        self.assertEqual(tool.name, expected_name)
-        self.assertEqual(tool.description, description)
-        self.assertIn("question", tool.inputSchema["properties"])
-
-    def test_create_prediction_tool_invalid_name(self):
+    @patch("mcp_flowise.server_lowlevel.NAME_TO_ID_MAPPING", {"tool_1": "id1"})
+    def test_dispatcher_handler_missing_question(self):
         """
-        Test creation of a tool with invalid characters in chatflow_id.
+        Test dispatcher handler with a missing 'question' argument.
         """
-        invalid_chatflow_id = "invalid@id!"
-        description = "Mock Description"
+        request = MagicMock()
+        request.params.name = "tool_1"
+        request.params.arguments = {}  # Missing 'question'
 
-        with self.assertRaises(ValueError):
-            create_prediction_tool(invalid_chatflow_id, description)
+        result = asyncio.run(dispatcher_handler(request))
+        self.assertIn("Missing \"question\" argument", result.root.content[0].text)
 
 
 if __name__ == "__main__":
