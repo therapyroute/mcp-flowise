@@ -45,7 +45,7 @@ def parse_chatflow_descriptions() -> List[Dict[str, str]]:
     Parse and validate the FLOWISE_CHATFLOW_DESCRIPTIONS environment variable.
 
     Returns:
-        A list of dictionaries containing 'id' and 'description' for each chatflow.
+        List[Dict[str, str]]: A list of dictionaries containing 'id' and 'description' for each chatflow.
 
     Raises:
         ValueError: If the environment variable is not set or has an invalid format.
@@ -107,7 +107,7 @@ def create_prediction_tool(chatflow_id: str, description: str) -> types.Tool:
         Tool: A dynamically created Tool object.
 
     Raises:
-        ValueError: If the chatflow_id contains invalid characters.
+        ValueError: If the chatflow_id contains invalid characters or if name conflicts occur.
     '''
     if not re.match(r"^[a-zA-Z0-9_-]+$", chatflow_id):
         logger.error("Invalid chatflow_id: %s. Only alphanumeric, dashes, and underscores are allowed.", chatflow_id)
@@ -115,10 +115,16 @@ def create_prediction_tool(chatflow_id: str, description: str) -> types.Tool:
 
     normalized_name = normalize_tool_name(description)
     if normalized_name in NAME_TO_ID_MAPPING:
-        logger.warning("Tool name '%s' already exists. Overwriting with new chatflow_id '%s'.", normalized_name, chatflow_id)
-    NAME_TO_ID_MAPPING[normalized_name] = chatflow_id
+        logger.warning(
+            "Tool name conflict: '%s' already exists for chatflow_id '%s'. New ID '%s' will not be registered.",
+            normalized_name,
+            NAME_TO_ID_MAPPING[normalized_name],
+            chatflow_id,
+        )
+        raise ValueError(f"Duplicate tool name detected for description '{description}'.")
 
-    logger.debug("Creating prediction tool for chatflow_id: %s, description: %s", chatflow_id, description)
+    NAME_TO_ID_MAPPING[normalized_name] = chatflow_id
+    logger.debug("Tool registered - Name: %s, ID: %s", normalized_name, chatflow_id)
 
     return types.Tool(
         name=normalized_name,
@@ -194,8 +200,8 @@ def run_server():
             tool = create_prediction_tool(chatflow["id"], chatflow["description"])
             tools.append(tool)
             logger.info("Registered tool: %s", tool.name)
-        except Exception as e:
-            logger.error("Error while creating tool for chatflow %s: %s", chatflow['id'], e)
+        except ValueError as e:
+            logger.error("Skipping tool registration for chatflow '%s': %s", chatflow["id"], e)
 
     if not tools:
         logger.critical("No valid tools registered. Shutting down the server.")
@@ -207,15 +213,6 @@ def run_server():
 
     # Register the tool listing endpoint
     async def list_tools(request: types.ListToolsRequest) -> types.ServerResult:
-        '''
-        Handle the list tools request by returning the list of registered tools.
-
-        Args:
-            request (types.ListToolsRequest): The incoming list tools request.
-
-        Returns:
-            types.ServerResult: The list of tools.
-        '''
         logger.debug("Handling list_tools request.")
         return types.ServerResult(root=types.ListToolsResult(tools=tools))
 
@@ -224,9 +221,6 @@ def run_server():
 
     # Start the server
     async def start_server():
-        '''
-        Asynchronously start the MCP server with standard I/O transport.
-        '''
         logger.info("Starting Low-Level MCP server...")
         try:
             async with stdio_server() as (read_stream, write_stream):

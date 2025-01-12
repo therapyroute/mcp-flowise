@@ -23,7 +23,9 @@ class TestToolRegistrationIntegration(unittest.TestCase):
         )
 
         # Start the server using asyncio.create_task
-        cls.loop = asyncio.get_event_loop()
+        # cls.loop = asyncio.get_event_loop()
+        cls.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(cls.loop)
         cls.server_task = cls.loop.create_task(cls.start_server())
 
     @classmethod
