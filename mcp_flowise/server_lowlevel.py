@@ -88,11 +88,14 @@ def normalize_tool_name(name: str) -> str:
         name (str): Original tool name.
 
     Returns:
-        str: Normalized tool name.
+        str: Normalized tool name. Returns 'unknown_tool' if the input is invalid.
     '''
+    if not name or not isinstance(name, str):
+        logger.warning("Invalid tool name input: %s. Using default 'unknown_tool'.", name)
+        return "unknown_tool"
     normalized = re.sub(r"[^a-zA-Z0-9]", "_", name).lower()
     logger.debug("Normalized tool name from '%s' to '%s'", name, normalized)
-    return normalized
+    return normalized or "unknown_tool"
 
 
 def create_prediction_tool(chatflow_id: str, description: str) -> types.Tool:
