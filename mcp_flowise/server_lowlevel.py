@@ -19,7 +19,7 @@ from mcp import types
 from mcp.server.lowlevel import Server
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
-from mcp_flowise.utils import flowise_predict
+from mcp_flowise.utils import flowise_predict, redact_api_key
 
 # Global tool mapping: tool name to chatflow ID
 NAME_TO_ID_MAPPING = {}
@@ -31,7 +31,7 @@ load_dotenv()
 DEBUG = os.getenv("DEBUG", "").lower() in ("true", "1", "yes")
 logging.basicConfig(
     level=logging.DEBUG if DEBUG else logging.INFO,
-    format="[%(levelname)s] %(asctime)s - %(message)s",
+    format="[%(levelname)s] %(asctime)s - %(name)s - %(message)s",
     stream=sys.stdout,
 )
 logger = logging.getLogger(__name__)
@@ -164,8 +164,12 @@ async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResu
         )
 
     logger.debug("Dispatching prediction for chatflow_id: %s with question: %s", chatflow_id, question)
-    result = flowise_predict(chatflow_id, question)
-    logger.debug("Received prediction result: %s", result)
+    try:
+        result = flowise_predict(chatflow_id, question)
+        logger.debug("Received prediction result: %s", result)
+    except Exception as e:
+        logger.error("Error during prediction for tool '%s': %s", tool_name, e)
+        result = f"Error: {str(e)}"
 
     return types.ServerResult(
         root=types.CallToolResult(
@@ -193,6 +197,10 @@ def run_server():
         except Exception as e:
             logger.error("Error while creating tool for chatflow %s: %s", chatflow['id'], e)
 
+    if not tools:
+        logger.critical("No valid tools registered. Shutting down the server.")
+        sys.exit(1)
+
     # Register the dispatcher handler once after all tools are created
     mcp.request_handlers[types.CallToolRequest] = dispatcher_handler
     logger.debug("Registered dispatcher_handler for CallToolRequest.")
@@ -208,7 +216,7 @@ def run_server():
         Returns:
             types.ServerResult: The list of tools.
         '''
-        logger.debug("Handling list tools request.")
+        logger.debug("Handling list_tools request.")
         return types.ServerResult(root=types.ListToolsResult(tools=tools))
 
     mcp.request_handlers[types.ListToolsRequest] = list_tools
@@ -220,21 +228,27 @@ def run_server():
         Asynchronously start the MCP server with standard I/O transport.
         '''
         logger.info("Starting Low-Level MCP server...")
-        async with stdio_server() as (read_stream, write_stream):
-            await mcp.run(
-                read_stream,
-                write_stream,
-                initialization_options=InitializationOptions(
-                    server_name="FlowiseMCP-with-EnvAuth",
-                    server_version="0.1.0",
-                    capabilities=types.ServerCapabilities(),
-                ),
-            )
+        try:
+            async with stdio_server() as (read_stream, write_stream):
+                await mcp.run(
+                    read_stream,
+                    write_stream,
+                    initialization_options=InitializationOptions(
+                        server_name="FlowiseMCP-with-EnvAuth",
+                        server_version="0.1.0",
+                        capabilities=types.ServerCapabilities(),
+                    ),
+                )
+        except Exception as e:
+            logger.critical("Unhandled exception in MCP server: %s", e)
+            sys.exit(1)
 
     try:
         asyncio.run(start_server())
+    except KeyboardInterrupt:
+        logger.info("MCP server shutdown initiated by user.")
     except Exception as e:
-        logger.critical("Unhandled exception in MCP server: %s", e)
+        logger.critical("Failed to start MCP server: %s", e)
         sys.exit(1)
 
 
