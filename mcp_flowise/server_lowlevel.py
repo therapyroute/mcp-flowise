@@ -19,12 +19,12 @@ from mcp import types
 from mcp.server.lowlevel import Server
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
-from mcp_flowise.utils import flowise_predict, redact_api_key
+from mcp_flowise.utils import flowise_predict
 
-# Global tool mapping
+# Global tool mapping: tool name to chatflow ID
 NAME_TO_ID_MAPPING = {}
 
-# Load environment variables
+# Load environment variables from .env if present
 load_dotenv()
 
 # Configure logging
@@ -90,7 +90,9 @@ def normalize_tool_name(name: str) -> str:
     Returns:
         str: Normalized tool name.
     '''
-    return re.sub(r"[^a-zA-Z0-9]", "_", name).lower()
+    normalized = re.sub(r"[^a-zA-Z0-9]", "_", name).lower()
+    logger.debug("Normalized tool name from '%s' to '%s'", name, normalized)
+    return normalized
 
 
 def create_prediction_tool(chatflow_id: str, description: str) -> types.Tool:
@@ -108,34 +110,16 @@ def create_prediction_tool(chatflow_id: str, description: str) -> types.Tool:
         ValueError: If the chatflow_id contains invalid characters.
     '''
     if not re.match(r"^[a-zA-Z0-9_-]+$", chatflow_id):
+        logger.error("Invalid chatflow_id: %s. Only alphanumeric, dashes, and underscores are allowed.", chatflow_id)
         raise ValueError(f"Invalid chatflow_id: {chatflow_id}. Only alphanumeric, dashes, and underscores are allowed.")
 
     normalized_name = normalize_tool_name(description)
+    if normalized_name in NAME_TO_ID_MAPPING:
+        logger.warning("Tool name '%s' already exists. Overwriting with new chatflow_id '%s'.", normalized_name, chatflow_id)
     NAME_TO_ID_MAPPING[normalized_name] = chatflow_id
 
-    async def handle_prediction(request: types.CallToolRequest) -> types.ServerResult:
-        '''
-        Handle prediction requests for this tool.
-        '''
-        if "question" not in request.params.arguments:
-            return types.ServerResult(
-                root=types.CallToolResult(
-                    content=[types.TextContent(type="text", text='Missing "question" argument')]
-                )
-            )
+    logger.debug("Creating prediction tool for chatflow_id: %s, description: %s", chatflow_id, description)
 
-        question = request.params.arguments["question"]
-        logger.debug(f"Received question: {question} for tool: {normalized_name}")
-        result = flowise_predict(chatflow_id, question)
-        logger.debug(f"Prediction result for question '{question}': {result}")
-        return types.ServerResult(
-            root=types.CallToolResult(content=[types.TextContent(type="text", text=result)])
-        )
-
-    # Register the handler for this tool
-    mcp.request_handlers[types.CallToolRequest] = handle_prediction
-
-    logger.debug(f"Tool created: {normalized_name} for chatflow ID: {chatflow_id}")
     return types.Tool(
         name=normalized_name,
         description=description,
@@ -144,6 +128,49 @@ def create_prediction_tool(chatflow_id: str, description: str) -> types.Tool:
             "required": ["question"],
             "properties": {"question": {"type": "string"}},
         },
+    )
+
+
+async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResult:
+    '''
+    Dispatcher handler that routes CallToolRequest to the appropriate tool handler based on the tool name.
+
+    Args:
+        request (types.CallToolRequest): The incoming tool call request.
+
+    Returns:
+        types.ServerResult: The result of the tool execution.
+    '''
+    tool_name = request.tool_name
+    logger.debug("Dispatcher received CallToolRequest for tool: %s", tool_name)
+
+    if tool_name not in NAME_TO_ID_MAPPING:
+        logger.error("Unknown tool requested: %s", tool_name)
+        return types.ServerResult(
+            root=types.CallToolResult(
+                content=[types.TextContent(type="text", text='Unknown tool requested')]
+            )
+        )
+
+    chatflow_id = NAME_TO_ID_MAPPING[tool_name]
+    question = request.params.arguments.get("question")
+
+    if not question:
+        logger.error("Missing 'question' argument in request for tool: %s", tool_name)
+        return types.ServerResult(
+            root=types.CallToolResult(
+                content=[types.TextContent(type="text", text='Missing "question" argument')]
+            )
+        )
+
+    logger.debug("Dispatching prediction for chatflow_id: %s with question: %s", chatflow_id, question)
+    result = flowise_predict(chatflow_id, question)
+    logger.debug("Received prediction result: %s", result)
+
+    return types.ServerResult(
+        root=types.CallToolResult(
+            content=[types.TextContent(type="text", text=result)]
+        )
     )
 
 
@@ -162,18 +189,37 @@ def run_server():
         try:
             tool = create_prediction_tool(chatflow["id"], chatflow["description"])
             tools.append(tool)
+            logger.info("Registered tool: %s", tool.name)
         except Exception as e:
-            logger.error(f"Error while creating tool for chatflow {chatflow['id']}: {e}")
+            logger.error("Error while creating tool for chatflow %s: %s", chatflow['id'], e)
+
+    # Register the dispatcher handler once after all tools are created
+    mcp.request_handlers[types.CallToolRequest] = dispatcher_handler
+    logger.debug("Registered dispatcher_handler for CallToolRequest.")
 
     # Register the tool listing endpoint
     async def list_tools(request: types.ListToolsRequest) -> types.ServerResult:
+        '''
+        Handle the list tools request by returning the list of registered tools.
+
+        Args:
+            request (types.ListToolsRequest): The incoming list tools request.
+
+        Returns:
+            types.ServerResult: The list of tools.
+        '''
         logger.debug("Handling list tools request.")
         return types.ServerResult(root=types.ListToolsResult(tools=tools))
 
     mcp.request_handlers[types.ListToolsRequest] = list_tools
+    logger.debug("Registered list_tools handler.")
 
     # Start the server
     async def start_server():
+        '''
+        Asynchronously start the MCP server with standard I/O transport.
+        '''
+        logger.info("Starting Low-Level MCP server...")
         async with stdio_server() as (read_stream, write_stream):
             await mcp.run(
                 read_stream,
@@ -185,7 +231,11 @@ def run_server():
                 ),
             )
 
-    asyncio.run(start_server())
+    try:
+        asyncio.run(start_server())
+    except Exception as e:
+        logger.critical("Unhandled exception in MCP server: %s", e)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
