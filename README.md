@@ -127,6 +127,8 @@ Depending on which mode you use:
 - **Example**:  
   `predict_mock_chatflow_id(question: str) -> str`
 
+![image](https://github.com/user-attachments/assets/3073c02b-34d2-4adf-a07f-8686863ba473)
+
 ### 3. Both `FLOWISE_CHATFLOW_ID` and `FLOWISE_ASSISTANT_ID` Set
 
 - **Behavior**: The server will refuse to start and output an error message.
@@ -169,7 +171,7 @@ python -m mcp_flowise
 
 - [x] Claude desktop integration
 - [x] Fastmcp mode
-- [ ] Lowlevel mode
+- [x] Lowlevel mode
 
 ## License
 
