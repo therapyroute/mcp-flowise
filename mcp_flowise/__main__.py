@@ -25,15 +25,15 @@ def main():
     DEBUG = os.getenv("DEBUG", "").lower() in ("true", "1", "yes")
     logger = setup_logging(debug=DEBUG)
 
-    logger.info("Starting mcp_flowise package entry point.")
+    logger.debug("Starting mcp_flowise package entry point.")
 
     # Check the FLOWISE_SIMPLE_MODE environment variable
     FLOWISE_SIMPLE_MODE = os.getenv("FLOWISE_SIMPLE_MODE", "").lower() in ("true", "1", "yes")
     if FLOWISE_SIMPLE_MODE:
-        logger.info("FLOWISE_SIMPLE_MODE is enabled. Launching FastMCP Server.")
+        logger.debug("FLOWISE_SIMPLE_MODE is enabled. Launching FastMCP Server.")
         from .server_fastmcp import run_server
     else:
-        logger.info("FLOWISE_SIMPLE_MODE is not enabled. Launching Low-Level Server.")
+        logger.debug("FLOWISE_SIMPLE_MODE is not enabled. Launching Low-Level Server.")
         from .server_lowlevel import run_server
 
     # Run the selected server
