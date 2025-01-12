@@ -161,6 +161,8 @@ def create_prediction_tool(chatflow_id: str, description: str) -> types.Tool:
         )
 
 
+import json
+
 async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResult:
     '''
     Dispatcher handler that routes CallToolRequest to the appropriate tool handler based on the tool name.
@@ -171,41 +173,61 @@ async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResu
     Returns:
         types.ServerResult: The result of the tool execution.
     '''
-    tool_name = request.tool_name
-    logger.debug("Dispatcher received CallToolRequest for tool: %s", tool_name)
-
-    if tool_name not in NAME_TO_ID_MAPPING:
-        logger.error("Unknown tool requested: %s", tool_name)
-        return types.ServerResult(
-            root=types.CallToolResult(
-                content=[types.TextContent(type="text", text='Unknown tool requested')]
-            )
-        )
-
-    chatflow_id = NAME_TO_ID_MAPPING[tool_name]
-    question = request.params.arguments.get("question")
-
-    if not question:
-        logger.error("Missing 'question' argument in request for tool: %s", tool_name)
-        return types.ServerResult(
-            root=types.CallToolResult(
-                content=[types.TextContent(type="text", text='Missing "question" argument')]
-            )
-        )
-
-    logger.debug("Dispatching prediction for chatflow_id: %s with question: %s", chatflow_id, question)
     try:
+        # Extract tool name from request.params.name
+        tool_name = request.params.name
+        logger.debug("Dispatcher received CallToolRequest for tool: %s", tool_name)
+
+        # Check if the tool name exists in the registered tools
+        if tool_name not in NAME_TO_ID_MAPPING:
+            logger.error("Unknown tool requested: %s", tool_name)
+            return types.ServerResult(
+                root=types.CallToolResult(
+                    content=[types.TextContent(type="text", text='Unknown tool requested')]
+                )
+            )
+
+        # Map the tool name to its associated chatflow ID
+        chatflow_id = NAME_TO_ID_MAPPING[tool_name]
+        question = request.params.arguments.get("question")
+
+        # Validate the question argument
+        if not question:
+            logger.error("Missing 'question' argument in request for tool: %s", tool_name)
+            return types.ServerResult(
+                root=types.CallToolResult(
+                    content=[types.TextContent(type="text", text='Missing "question" argument')]
+                )
+            )
+
+        logger.debug("Dispatching prediction for chatflow_id: %s with question: %s", chatflow_id, question)
+
+        # Call the prediction function
         result = flowise_predict(chatflow_id, question)
         logger.debug("Received prediction result: %s", result)
-    except Exception as e:
-        logger.error("Error during prediction for tool '%s': %s", tool_name, e)
-        result = f"Error: {str(e)}"
 
-    return types.ServerResult(
-        root=types.CallToolResult(
-            content=[types.TextContent(type="text", text=result)]
+        return types.ServerResult(
+            root=types.CallToolResult(
+                content=[types.TextContent(type="text", text=result)]
+            )
         )
-    )
+    except Exception as e:
+        # Log the error and dump the raw request for debugging
+        logger.error("Unhandled exception in dispatcher_handler: %s", e, exc_info=True)
+
+        try:
+            # Attempt to log the raw request
+            raw_request = json.dumps(request.model_dump(), indent=2) if hasattr(request, 'model_dump') else str(request)
+            logger.error("Raw request causing the error: %s", raw_request)
+        except Exception as log_error:
+            logger.error("Failed to serialize the raw request: %s", log_error)
+
+        # Return a generic error response
+        return types.ServerResult(
+            root=types.CallToolResult(
+                content=[types.TextContent(type="text", text="An internal server error occurred. Please check logs.")]
+            )
+        )
 
 
 def run_server():
