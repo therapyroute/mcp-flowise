@@ -113,7 +113,21 @@ def create_prediction_tool(chatflow_id: str, description: str) -> types.Tool:
         logger.error("Invalid chatflow_id: %s. Only alphanumeric, dashes, and underscores are allowed.", chatflow_id)
         raise ValueError(f"Invalid chatflow_id: {chatflow_id}. Only alphanumeric, dashes, and underscores are allowed.")
 
-    normalized_name = normalize_tool_name(description)
+    # Normalize the tool name and handle fallback for invalid values
+    try:
+        normalized_name = normalize_tool_name(description)
+        if not normalized_name:
+            raise ValueError("Normalization resulted in an empty tool name.")
+    except Exception as e:
+        logger.error("Error normalizing tool name for description '%s': %s. Using a dummy name.", description, e)
+        normalized_name = f"dummy_tool_{chatflow_id}"
+
+    # Default description if invalid or empty
+    if not description or not description.strip():
+        logger.warning("Invalid or empty description for chatflow_id '%s'. Using a dummy description.", chatflow_id)
+        description = f"Dummy description for {chatflow_id}"
+
+    # Check for duplicate normalized names
     if normalized_name in NAME_TO_ID_MAPPING:
         logger.warning(
             "Tool name conflict: '%s' already exists for chatflow_id '%s'. New ID '%s' will not be registered.",
@@ -123,18 +137,36 @@ def create_prediction_tool(chatflow_id: str, description: str) -> types.Tool:
         )
         raise ValueError(f"Duplicate tool name detected for description '{description}'.")
 
+    # Map the tool name to the chatflow ID
     NAME_TO_ID_MAPPING[normalized_name] = chatflow_id
     logger.debug("Tool registered - Name: %s, ID: %s", normalized_name, chatflow_id)
 
-    return types.Tool(
-        name=normalized_name,
-        description=description,
-        inputSchema={
-            "type": "object",
-            "required": ["question"],
-            "properties": {"question": {"type": "string"}},
-        },
-    )
+    # Attempt to construct the Tool object, with a fallback
+    try:
+        return types.Tool(
+            name=normalized_name,
+            description=description,
+            inputSchema={
+                "type": "object",
+                "required": ["question"],
+                "properties": {"question": {"type": "string"}},
+            },
+        )
+    except Exception as e:
+        logger.error(
+            "Error creating Tool object for chatflow_id '%s', description '%s': %s. Using a fallback schema.",
+            chatflow_id,
+            description,
+            e,
+        )
+        return types.Tool(
+            name=normalized_name,
+            description=description,
+            inputSchema={
+                "type": "object",
+                "properties": {},  # Fallback schema
+            },
+        )
 
 
 async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResult:
