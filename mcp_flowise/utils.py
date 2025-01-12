@@ -23,18 +23,21 @@ FLOWISE_API_KEY = os.getenv("FLOWISE_API_KEY", "")
 FLOWISE_API_ENDPOINT = os.getenv("FLOWISE_API_ENDPOINT", "http://localhost:3000")
 
 
-def setup_logging(debug: bool = False, log_dir: str = "logs", log_file: str = "debug-mcp-flowise.log") -> logging.Logger:
+def setup_logging(debug: bool = False, log_dir: str = None, log_file: str = "debug-mcp-flowise.log") -> logging.Logger:
     """
     Sets up logging for the application, including outputting CRITICAL and ERROR logs to stdout.
 
     Args:
         debug (bool): If True, set log level to DEBUG; otherwise, INFO.
-        log_dir (str): Directory where log files will be stored.
+        log_dir (str): Directory where log files will be stored. Defaults to user's home directory.
         log_file (str): Name of the log file.
 
     Returns:
         logging.Logger: Configured logger instance.
     """
+    if log_dir is None:
+        log_dir = os.path.join(os.path.expanduser("~"), "mcp_logs")
+    
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG if debug else logging.INFO)
     logger.propagate = False  # Prevent log messages from propagating to the root logger
