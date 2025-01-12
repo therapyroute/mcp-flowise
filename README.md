@@ -182,7 +182,8 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## TODO
 
-- [x] Claude desktop integration
 - [x] Fastmcp mode
 - [x] Lowlevel mode
+- [x] Filtering
+- [x] Claude desktop integration
 - [ ] Assistants

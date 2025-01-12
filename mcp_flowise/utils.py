@@ -1,5 +1,5 @@
 """
-Utility functions for mcp_flowise, including logging setup and low-level calls to the Flowise API.
+Utility functions for mcp_flowise, including logging setup, chatflow filtering, and Flowise API interactions.
 
 This module centralizes shared functionality such as:
 1. Logging configuration for consistent log output across the application.
@@ -23,42 +23,67 @@ FLOWISE_API_KEY = os.getenv("FLOWISE_API_KEY", "")
 FLOWISE_API_ENDPOINT = os.getenv("FLOWISE_API_ENDPOINT", "http://localhost:3000")
 
 # Filtering environment variables
-WHITELIST_IDS = set(os.getenv("FLOWISE_WHITELIST_ID", "").split(","))
-BLACKLIST_IDS = set(os.getenv("FLOWISE_BLACKLIST_ID", "").split(","))
+WHITELIST_IDS = set(filter(bool, os.getenv("FLOWISE_WHITELIST_ID", "").split(",")))
+BLACKLIST_IDS = set(filter(bool, os.getenv("FLOWISE_BLACKLIST_ID", "").split(",")))
 WHITELIST_NAME_REGEX = os.getenv("FLOWISE_WHITELIST_NAME_REGEX", "")
 BLACKLIST_NAME_REGEX = os.getenv("FLOWISE_BLACKLIST_NAME_REGEX", "")
-
-# Global logger instance
-logger = logging.getLogger(__name__)
-
 
 def setup_logging(debug: bool = False, log_dir: str = "logs", log_file: str = "debug-mcp-flowise.log") -> logging.Logger:
     """
     Sets up logging for the application, including outputting CRITICAL and ERROR logs to stdout.
+
+    Args:
+        debug (bool): If True, set log level to DEBUG; otherwise, INFO.
+        log_dir (str): Directory where log files will be stored.
+        log_file (str): Name of the log file.
+
+    Returns:
+        logging.Logger: Configured logger instance.
     """
-    # Ensure the logs directory exists
-    os.makedirs(log_dir, exist_ok=True)
     log_path = os.path.join(log_dir, log_file)
 
-    # Create handlers
-    file_handler = logging.FileHandler(log_path, mode="a")
-    stdout_handler = logging.StreamHandler(sys.stdout)
+    # Create handlers list
+    handlers = []
 
-    # Set log levels
-    stdout_handler.setLevel(logging.ERROR)  # Only output ERROR and CRITICAL logs to stdout
-    file_handler.setLevel(logging.DEBUG if debug else logging.INFO)
+    # Attempt to create FileHandler
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+        file_handler = logging.FileHandler(log_path, mode="a")
+        file_handler.setLevel(logging.DEBUG if debug else logging.INFO)
+        formatter = logging.Formatter("[%(levelname)s] %(asctime)s - %(message)s")
+        file_handler.setFormatter(formatter)
+        handlers.append(file_handler)
+    except Exception as e:
+        print(f"Failed to create log file handler: {e}", file=sys.stderr)
+
+    # Attempt to create StreamHandler
+    try:
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setLevel(logging.ERROR)
+        formatter = logging.Formatter("[%(levelname)s] %(message)s")
+        stdout_handler.setFormatter(formatter)
+        handlers.append(stdout_handler)
+    except Exception as e:
+        print(f"Failed to create stdout log handler: {e}", file=sys.stderr)
 
     # Configure logging
     logging.basicConfig(
         level=logging.DEBUG if debug else logging.INFO,
         format="[%(levelname)s] %(asctime)s - %(message)s",
-        handlers=[file_handler, stdout_handler],
+        handlers=handlers,
     )
 
+    # Obtain the logger after configuration
     logger = logging.getLogger(__name__)
     logger.info("Logging initialized. Writing logs to %s", log_path)
     return logger
 
+# Set up logging before obtaining the logger
+DEBUG = os.getenv("DEBUG", "").lower() in ("true", "1", "yes")
+setup_logging(debug=DEBUG)
+
+# Obtain the logger after setup_logging
+logger = logging.getLogger(__name__)
 
 def redact_api_key(key: str) -> str:
     """
@@ -73,7 +98,6 @@ def redact_api_key(key: str) -> str:
     if not key or len(key) <= 4:
         return "<not set>"
     return f"{key[:2]}{'*' * (len(key) - 4)}{key[-2:]}"
-
 
 def normalize_tool_name(name: str) -> str:
     """
@@ -92,10 +116,10 @@ def normalize_tool_name(name: str) -> str:
     logger.debug("Normalized tool name from '%s' to '%s'", name, normalized)
     return normalized or "unknown_tool"
 
-
 def filter_chatflows(chatflows: list[dict]) -> list[dict]:
     """
     Filters chatflows based on whitelist and blacklist criteria.
+    Whitelist takes precedence over blacklist.
 
     Args:
         chatflows (list[dict]): A list of chatflow dictionaries.
@@ -109,29 +133,38 @@ def filter_chatflows(chatflows: list[dict]) -> list[dict]:
         chatflow_id = chatflow.get("id", "")
         chatflow_name = chatflow.get("name", "")
 
-        # Check whitelist
-        if WHITELIST_IDS or WHITELIST_NAME_REGEX:
-            if WHITELIST_IDS and chatflow_id not in WHITELIST_IDS:
-                logger.debug("Skipping chatflow '%s' (ID: '%s') - Not in whitelist.", chatflow_name, chatflow_id)
-                continue
-            if WHITELIST_NAME_REGEX and not re.search(WHITELIST_NAME_REGEX, chatflow_name):
-                logger.debug("Skipping chatflow '%s' (ID: '%s') - Name does not match whitelist regex.", chatflow_name, chatflow_id)
-                continue
+        # Flags to determine inclusion
+        is_whitelisted = False
 
-        # Check blacklist (applies only if whitelist conditions are not met)
-        if BLACKLIST_IDS or BLACKLIST_NAME_REGEX:
+        # Check Whitelist
+        if WHITELIST_IDS or WHITELIST_NAME_REGEX:
+            if WHITELIST_IDS and chatflow_id in WHITELIST_IDS:
+                is_whitelisted = True
+            if WHITELIST_NAME_REGEX and re.search(WHITELIST_NAME_REGEX, chatflow_name):
+                is_whitelisted = True
+
+            if not is_whitelisted:
+                # If not whitelisted, apply blacklist
+                if BLACKLIST_IDS and chatflow_id in BLACKLIST_IDS:
+                    logger.debug("Skipping chatflow '%s' (ID: '%s') - In blacklist.", chatflow_name, chatflow_id)
+                    continue  # Exclude blacklisted by ID
+                if BLACKLIST_NAME_REGEX and re.search(BLACKLIST_NAME_REGEX, chatflow_name):
+                    logger.debug("Skipping chatflow '%s' (ID: '%s') - Name matches blacklist regex.", chatflow_name, chatflow_id)
+                    continue  # Exclude blacklisted by name
+        else:
+            # If no whitelist, apply blacklist directly
             if BLACKLIST_IDS and chatflow_id in BLACKLIST_IDS:
                 logger.debug("Skipping chatflow '%s' (ID: '%s') - In blacklist.", chatflow_name, chatflow_id)
-                continue
+                continue  # Exclude blacklisted by ID
             if BLACKLIST_NAME_REGEX and re.search(BLACKLIST_NAME_REGEX, chatflow_name):
                 logger.debug("Skipping chatflow '%s' (ID: '%s') - Name matches blacklist regex.", chatflow_name, chatflow_id)
-                continue
+                continue  # Exclude blacklisted by name
 
+        # Include the chatflow if it passes all filters
         filtered_chatflows.append(chatflow)
 
     logger.info("Filtered chatflows: %d out of %d", len(filtered_chatflows), len(chatflows))
     return filtered_chatflows
-
 
 def flowise_predict(chatflow_id: str, question: str) -> str:
     """
@@ -170,7 +203,6 @@ def flowise_predict(chatflow_id: str, question: str) -> str:
         logger.error(f"Error during prediction: {e}")
         return f"Error: {str(e)}"
 
-
 def fetch_chatflows() -> list[dict]:
     """
     Fetch a list of all chatflows from the Flowise API.
@@ -203,10 +235,6 @@ def fetch_chatflows() -> list[dict]:
         logger.error(f"Error fetching chatflows: {e}")
         return []
 
-
-# Set up logging during module import to ensure consistent logging throughout the application
-DEBUG = os.getenv("DEBUG", "").lower() in ("true", "1", "yes")
-setup_logging(debug=DEBUG)
-
+# Log key environment variable values
 logger.info(f"Flowise API Key (redacted): {redact_api_key(FLOWISE_API_KEY)}")
 logger.info(f"Flowise API Endpoint: {FLOWISE_API_ENDPOINT}")
