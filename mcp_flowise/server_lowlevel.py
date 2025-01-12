@@ -11,7 +11,6 @@ Each chatflow is described in the format:
 import os
 import re
 import sys
-import logging
 import asyncio
 from typing import List, Dict
 from dotenv import load_dotenv
@@ -19,22 +18,17 @@ from mcp import types
 from mcp.server.lowlevel import Server
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
-from mcp_flowise.utils import flowise_predict, redact_api_key
-
-# Global tool mapping: tool name to chatflow ID
-NAME_TO_ID_MAPPING = {}
+from mcp_flowise.utils import flowise_predict, redact_api_key, setup_logging
 
 # Load environment variables from .env if present
 load_dotenv()
 
 # Configure logging
 DEBUG = os.getenv("DEBUG", "").lower() in ("true", "1", "yes")
-logging.basicConfig(
-    level=logging.DEBUG if DEBUG else logging.INFO,
-    format="[%(levelname)s] %(asctime)s - %(name)s - %(message)s",
-    stream=sys.stdout,
-)
-logger = logging.getLogger(__name__)
+logger = setup_logging(debug=DEBUG)
+
+# Global tool mapping: tool name to chatflow ID
+NAME_TO_ID_MAPPING = {}
 
 # Initialize the Low-Level MCP Server
 mcp = Server("FlowiseMCP-with-EnvAuth")
@@ -116,7 +110,6 @@ def create_prediction_tool(chatflow_id: str, description: str) -> types.Tool:
         logger.error("Invalid chatflow_id: %s. Only alphanumeric, dashes, and underscores are allowed.", chatflow_id)
         raise ValueError(f"Invalid chatflow_id: {chatflow_id}. Only alphanumeric, dashes, and underscores are allowed.")
 
-    # Normalize the tool name and handle fallback for invalid values
     try:
         normalized_name = normalize_tool_name(description)
         if not normalized_name:
@@ -125,12 +118,10 @@ def create_prediction_tool(chatflow_id: str, description: str) -> types.Tool:
         logger.error("Error normalizing tool name for description '%s': %s. Using a dummy name.", description, e)
         normalized_name = f"dummy_tool_{chatflow_id}"
 
-    # Default description if invalid or empty
     if not description or not description.strip():
         logger.warning("Invalid or empty description for chatflow_id '%s'. Using a dummy description.", chatflow_id)
         description = f"Dummy description for {chatflow_id}"
 
-    # Check for duplicate normalized names
     if normalized_name in NAME_TO_ID_MAPPING:
         logger.warning(
             "Tool name conflict: '%s' already exists for chatflow_id '%s'. New ID '%s' will not be registered.",
@@ -140,11 +131,9 @@ def create_prediction_tool(chatflow_id: str, description: str) -> types.Tool:
         )
         raise ValueError(f"Duplicate tool name detected for description '{description}'.")
 
-    # Map the tool name to the chatflow ID
     NAME_TO_ID_MAPPING[normalized_name] = chatflow_id
     logger.debug("Tool registered - Name: %s, ID: %s", normalized_name, chatflow_id)
 
-    # Attempt to construct the Tool object, with a fallback
     try:
         return types.Tool(
             name=normalized_name,
@@ -242,11 +231,9 @@ def run_server():
         logger.critical("No valid tools registered. Shutting down the server.")
         sys.exit(1)
 
-    # Register the dispatcher handler once after all tools are created
     mcp.request_handlers[types.CallToolRequest] = dispatcher_handler
     logger.debug("Registered dispatcher_handler for CallToolRequest.")
 
-    # Register the tool listing endpoint
     async def list_tools(request: types.ListToolsRequest) -> types.ServerResult:
         logger.debug("Handling list_tools request.")
         return types.ServerResult(root=types.ListToolsResult(tools=tools))
@@ -254,7 +241,6 @@ def run_server():
     mcp.request_handlers[types.ListToolsRequest] = list_tools
     logger.debug("Registered list_tools handler.")
 
-    # Start the server
     async def start_server():
         logger.info("Starting Low-Level MCP server...")
         try:
