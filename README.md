@@ -8,7 +8,9 @@ It supports two operation modes:
 - **LowLevel Mode (Default)**: Dynamically registers tools for all chatflows retrieved from the Flowise API.
 - **FastMCP Mode**: Provides static tools for listing chatflows and creating predictions, suitable for simpler configurations.
 
-![LowLevel Mode Diagram](https://github.com/user-attachments/assets/3073c02b-34d2-4adf-a07f-8686863ba473)
+<p align="center">
+<img src="https://github.com/user-attachments/assets/d27afb05-c5d3-4cc9-9918-f7be8c715304" alt="Claude Desktop Screenshot">
+</p>
 
 ---
 
@@ -80,7 +82,10 @@ Enabled by setting `FLOWISE_SIMPLE_MODE=true`. This mode:
 - Allows static configuration using `FLOWISE_CHATFLOW_ID` or `FLOWISE_ASSISTANT_ID`.
 - Lists all available chatflows via `list_chatflows`.
 
-![FastMCP Mode Diagram](https://github.com/user-attachments/assets/0901ef9c-5d56-4f1e-a799-1e5d8e8343bd)
+<p align="center">
+<img src="https://github.com/user-attachments/assets/0901ef9c-5d56-4f1e-a799-1e5d8e8343bd" alt="FastMCP Mode">
+</p>
+
 
 ---
 ## Running on Windows with `uvx`
