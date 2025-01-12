@@ -5,9 +5,11 @@ This server dynamically registers tools based on the provided chatflows
 retrieved from the Flowise API. Tool names are normalized for safety 
 and consistency, and potential conflicts are logged.
 
-Chatflows are retrieved dynamically and their names are used as tool
-descriptions. Conflicts in tool names after normalization are handled
-gracefully by skipping those chatflows.
+Descriptions for tools are prioritized from FLOWISE_CHATFLOW_DESCRIPTIONS,
+falling back to the chatflow names when not provided.
+
+Conflicts in tool names after normalization are handled gracefully by
+skipping those chatflows.
 '''
 
 import os
@@ -20,7 +22,12 @@ from mcp import types
 from mcp.server.lowlevel import Server
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
-from mcp_flowise.utils import flowise_predict, fetch_chatflows, normalize_tool_name, setup_logging
+from mcp_flowise.utils import (
+    flowise_predict,
+    fetch_chatflows,
+    normalize_tool_name,
+    setup_logging,
+)
 
 # Load environment variables from .env if present
 load_dotenv()
@@ -34,6 +41,28 @@ NAME_TO_ID_MAPPING = {}
 
 # Initialize the Low-Level MCP Server
 mcp = Server("FlowiseMCP-with-EnvAuth")
+
+
+def get_chatflow_descriptions() -> Dict[str, str]:
+    """
+    Parse the FLOWISE_CHATFLOW_DESCRIPTIONS environment variable for descriptions.
+
+    Returns:
+        dict: A dictionary mapping chatflow IDs to descriptions.
+    """
+    descriptions_env = os.getenv("FLOWISE_CHATFLOW_DESCRIPTIONS", "")
+    logger.debug("Retrieved FLOWISE_CHATFLOW_DESCRIPTIONS: %s", descriptions_env)
+
+    descriptions = {}
+    for pair in descriptions_env.split(","):
+        if ":" not in pair:
+            logger.warning("Invalid format in FLOWISE_CHATFLOW_DESCRIPTIONS: %s", pair)
+            continue
+        chatflow_id, description = map(str.strip, pair.split(":", 1))
+        if chatflow_id and description:
+            descriptions[chatflow_id] = description
+    logger.debug("Parsed FLOWISE_CHATFLOW_DESCRIPTIONS: %s", descriptions)
+    return descriptions
 
 
 async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResult:
@@ -56,7 +85,7 @@ async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResu
             logger.error("Unknown tool requested: %s", tool_name)
             return types.ServerResult(
                 root=types.CallToolResult(
-                    content=[types.TextContent(type="text", text='Unknown tool requested')]
+                    content=[types.TextContent(type="text", text="Unknown tool requested")]
                 )
             )
 
@@ -117,12 +146,15 @@ def run_server():
         logger.critical("Failed to start server: %s", e)
         sys.exit(1)
 
+    # Get descriptions from environment variable
+    chatflow_descriptions = get_chatflow_descriptions()
+
     tools = []
     for chatflow in chatflows:
         try:
             # Normalize the tool name to ensure it's safe for use
             normalized_name = normalize_tool_name(chatflow["name"])
-            
+
             if normalized_name in NAME_TO_ID_MAPPING:
                 logger.warning(
                     "Tool name conflict: '%s' already exists. Skipping chatflow '%s' (ID: '%s').",
@@ -135,10 +167,13 @@ def run_server():
             # Register the normalized name and chatflow ID
             NAME_TO_ID_MAPPING[normalized_name] = chatflow["id"]
 
-            # Create the tool using the normalized name and original description
+            # Use the description from the environment variable, fallback to the chatflow name
+            description = chatflow_descriptions.get(chatflow["id"], chatflow["name"])
+
+            # Create the tool using the normalized name and description
             tool = types.Tool(
                 name=normalized_name,
-                description=chatflow["name"],  # Keep the original name as the description
+                description=description,
                 inputSchema={
                     "type": "object",
                     "required": ["question"],

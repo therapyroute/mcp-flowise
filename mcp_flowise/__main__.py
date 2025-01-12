@@ -2,7 +2,7 @@
 Entry point for the mcp_flowise package.
 
 This script determines which server to run based on the presence of 
-the FLOWISE_CHATFLOW_DESCRIPTIONS environment variable:
+the FLOWISE_SIMPLE_MODE environment variable:
 - Low-Level Server: For dynamic tool creation based on chatflows.
 - FastMCP Server: For static tool configurations.
 """
@@ -11,12 +11,13 @@ import os
 import sys
 from mcp_flowise.utils import setup_logging
 
+
 def main():
     """
     Main entry point for the mcp_flowise package.
 
-    Depending on the FLOWISE_CHATFLOW_DESCRIPTIONS environment variable, 
-    this function launches either:
+    Depending on the FLOWISE_SIMPLE_MODE environment variable, this function
+    launches either:
     - Low-Level Server (dynamic tools)
     - FastMCP Server (static tools)
     """
@@ -26,14 +27,14 @@ def main():
 
     logger.info("Starting mcp_flowise package entry point.")
 
-    # Check the FLOWISE_CHATFLOW_DESCRIPTIONS environment variable
-    FLOWISE_CHATFLOW_DESCRIPTIONS = os.getenv("FLOWISE_CHATFLOW_DESCRIPTIONS")
-    if FLOWISE_CHATFLOW_DESCRIPTIONS:
-        logger.info("FLOWISE_CHATFLOW_DESCRIPTIONS is set. Launching Low-Level Server.")
-        from .server_lowlevel import run_server
-    else:
-        logger.info("FLOWISE_CHATFLOW_DESCRIPTIONS is not set. Launching FastMCP Server.")
+    # Check the FLOWISE_SIMPLE_MODE environment variable
+    FLOWISE_SIMPLE_MODE = os.getenv("FLOWISE_SIMPLE_MODE", "").lower() in ("true", "1", "yes")
+    if FLOWISE_SIMPLE_MODE:
+        logger.info("FLOWISE_SIMPLE_MODE is enabled. Launching FastMCP Server.")
         from .server_fastmcp import run_server
+    else:
+        logger.info("FLOWISE_SIMPLE_MODE is not enabled. Launching Low-Level Server.")
+        from .server_lowlevel import run_server
 
     # Run the selected server
     try:

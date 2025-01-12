@@ -5,6 +5,7 @@ This module centralizes shared functionality such as:
 1. Logging configuration for consistent log output across the application.
 2. Safe redaction of sensitive data like API keys in logs.
 3. Low-level interactions with the Flowise API for predictions and chatflow management.
+4. Flexible filtering of chatflows based on whitelist/blacklist criteria.
 """
 
 import os
@@ -20,6 +21,12 @@ load_dotenv()
 # Flowise API configuration
 FLOWISE_API_KEY = os.getenv("FLOWISE_API_KEY", "")
 FLOWISE_API_ENDPOINT = os.getenv("FLOWISE_API_ENDPOINT", "http://localhost:3000")
+
+# Filtering environment variables
+WHITELIST_IDS = set(os.getenv("FLOWISE_WHITELIST_ID", "").split(","))
+BLACKLIST_IDS = set(os.getenv("FLOWISE_BLACKLIST_ID", "").split(","))
+WHITELIST_NAME_REGEX = os.getenv("FLOWISE_WHITELIST_NAME_REGEX", "")
+BLACKLIST_NAME_REGEX = os.getenv("FLOWISE_BLACKLIST_NAME_REGEX", "")
 
 # Global logger instance
 logger = logging.getLogger(__name__)
@@ -89,6 +96,46 @@ def normalize_tool_name(name: str) -> str:
     return normalized or "unknown_tool"
 
 
+def filter_chatflows(chatflows: list[dict]) -> list[dict]:
+    """
+    Filters chatflows based on whitelist and blacklist criteria.
+
+    Args:
+        chatflows (list[dict]): A list of chatflow dictionaries.
+
+    Returns:
+        list[dict]: Filtered list of chatflows.
+    """
+    filtered_chatflows = []
+
+    for chatflow in chatflows:
+        chatflow_id = chatflow.get("id", "")
+        chatflow_name = chatflow.get("name", "")
+
+        # Check whitelist
+        if WHITELIST_IDS or WHITELIST_NAME_REGEX:
+            if WHITELIST_IDS and chatflow_id not in WHITELIST_IDS:
+                logger.debug("Skipping chatflow '%s' (ID: '%s') - Not in whitelist.", chatflow_name, chatflow_id)
+                continue
+            if WHITELIST_NAME_REGEX and not re.search(WHITELIST_NAME_REGEX, chatflow_name):
+                logger.debug("Skipping chatflow '%s' (ID: '%s') - Name does not match whitelist regex.", chatflow_name, chatflow_id)
+                continue
+
+        # Check blacklist (applies only if whitelist conditions are not met)
+        if BLACKLIST_IDS or BLACKLIST_NAME_REGEX:
+            if BLACKLIST_IDS and chatflow_id in BLACKLIST_IDS:
+                logger.debug("Skipping chatflow '%s' (ID: '%s') - In blacklist.", chatflow_name, chatflow_id)
+                continue
+            if BLACKLIST_NAME_REGEX and re.search(BLACKLIST_NAME_REGEX, chatflow_name):
+                logger.debug("Skipping chatflow '%s' (ID: '%s') - Name matches blacklist regex.", chatflow_name, chatflow_id)
+                continue
+
+        filtered_chatflows.append(chatflow)
+
+    logger.info("Filtered chatflows: %d out of %d", len(filtered_chatflows), len(chatflows))
+    return filtered_chatflows
+
+
 def flowise_predict(chatflow_id: str, question: str) -> str:
     """
     Sends a question to a specific chatflow ID via the Flowise API and returns the response text.
@@ -152,8 +199,8 @@ def fetch_chatflows() -> list[dict]:
         chatflows_data = response.json()
         simplified_chatflows = [{"id": cf["id"], "name": cf["name"]} for cf in chatflows_data]
 
-        logger.debug(f"Simplified Chatflows: {simplified_chatflows}")
-        return simplified_chatflows
+        logger.debug(f"Fetched chatflows: {simplified_chatflows}")
+        return filter_chatflows(simplified_chatflows)
     except requests.exceptions.RequestException as e:
         # Log and return an empty list on error
         logger.error(f"Error fetching chatflows: {e}")

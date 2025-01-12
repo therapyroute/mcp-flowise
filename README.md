@@ -1,31 +1,36 @@
+
 # mcp-flowise
 
-`mcp-flowise` is a Python package that implements a Model Context Protocol (MCP) server integrating with the Flowise API. It provides a streamlined way to create predictions, list chatflows, and manage assistants in a standardized and flexible manner. It supports two operation modes:
+`mcp-flowise` is a Python package implementing a Model Context Protocol (MCP) server that integrates with the Flowise API. It provides a standardized and flexible way to list chatflows, create predictions, and dynamically register tools for Flowise chatflows or assistants.
 
-- **FastMCP Mode**: Exposes `list_chatflows` and `create_prediction` tools with minimal configuration.
-- **LowLevel Mode**: Dynamically creates tools for each chatflow or assistant, requiring descriptions for each.
+It supports two operation modes:
 
-<a href="https://glama.ai/mcp/servers/h3cdir1w9a"><img width="380" height="200" src="https://glama.ai/mcp/servers/h3cdir1w9a/badge" alt="mcp-flowise MCP server" /></a>
+- **LowLevel Mode (Default)**: Dynamically registers tools for all chatflows retrieved from the Flowise API.
+- **FastMCP Mode**: Provides static tools for listing chatflows and creating predictions, suitable for simpler configurations.
+
+![LowLevel Mode Diagram](https://github.com/user-attachments/assets/3073c02b-34d2-4adf-a07f-8686863ba473)
+
+---
 
 ## Features
 
-- **Authentication**: Interact securely with the Flowise API using Bearer tokens.
-- **Dynamic Tool Exposure**: Exposes tools based on configuration, either as generalized tools (FastMCP) or dynamically created tools (LowLevel).
-- **Flexible Deployment**: Can be run directly or integrated into larger MCP workflows using `uvx`.
-- **Environment Configuration**: Manage sensitive configurations through environment variables (e.g., `.env` files).
+- **Dynamic Tool Exposure**: LowLevel mode dynamically creates tools for each chatflow or assistant.
+- **Simpler Configuration**: FastMCP mode exposes `list_chatflows` and `create_prediction` tools for minimal setup.
+- **Flexible Filtering**: Both modes support filtering chatflows via whitelists and blacklists by IDs or names (regex).
+- **MCP Integration**: Integrates seamlessly into MCP workflows.
+
+---
 
 ## Installation
 
 ### Prerequisites
 
 - Python 3.12 or higher
-- `pip` package manager
+- `uvx` package manager
 
-## Running the Server
+### Install and Run via `uvx`
 
-### Using `uvx` from GitHub
-
-The easiest way to run the server is via `uvx`, which installs and executes the package directly from the GitHub repository:
+Confirm you can run the server directly from the GitHub repository using `uvx`:
 
 ```bash
 uvx --from git+https://github.com/matthewhand/mcp-flowise mcp-flowise
@@ -54,6 +59,30 @@ You can integrate `mcp-flowise` into your MCP ecosystem by adding it to the `mcp
 }
 ```
 
+---
+
+## Modes of Operation
+
+### 1. LowLevel Mode (Default)
+
+**Features**:
+- Dynamically registers all chatflows as separate tools.
+- Tools are named after chatflow names (normalized).
+- Uses descriptions from the `FLOWISE_CHATFLOW_DESCRIPTIONS` variable, falling back to chatflow names if no description is provided.
+
+**Example**:
+- `my_tool(question: str) -> str` dynamically created for a chatflow.
+
+### 2. FastMCP Mode (Simple Mode)
+
+Enabled by setting `FLOWISE_SIMPLE_MODE=true`. This mode:
+- Exposes two tools: `list_chatflows` and `create_prediction`.
+- Allows static configuration using `FLOWISE_CHATFLOW_ID` or `FLOWISE_ASSISTANT_ID`.
+- Lists all available chatflows via `list_chatflows`.
+
+![FastMCP Mode Diagram](https://github.com/user-attachments/assets/0901ef9c-5d56-4f1e-a799-1e5d8e8343bd)
+
+---
 ## Running on Windows with `uvx`
 
 If you're using `uvx` on Windows and encounter issues with `--from git+https`, the recommended solution is to clone the repository locally and configure the `mcpServers` with the full path to `uvx.exe` and the cloned repository. Additionally, include `APPDATA`, `LOGLEVEL`, and other environment variables as required.
@@ -89,92 +118,71 @@ If you're using `uvx` on Windows and encounter issues with `--from git+https`, t
 
 ## Environment Variables
 
-`mcp-flowise` relies on a few key environment variables:
+### General
 
-- `FLOWISE_API_KEY`: Your Flowise API Bearer token. (**Required**)
-- `FLOWISE_API_ENDPOINT`: Base URL for Flowise (default: `http://localhost:3000`). (**Required**)
+- `FLOWISE_API_KEY`: Your Flowise API Bearer token (**required**).
+- `FLOWISE_API_ENDPOINT`: Base URL for Flowise (default: `http://localhost:3000`).
 
-Depending on which mode you use:
+### LowLevel Mode (Default)
 
-- **FastMCP Mode** (Default):
-  - `FLOWISE_CHATFLOW_ID`: Single Chatflow ID (optional).
-  - `FLOWISE_ASSISTANT_ID`: Single Assistant ID (optional).
-  - `FLOWISE_CHATFLOW_WHITELIST`: Comma-separated list of allowed chatflow IDs (optional).
-  - `FLOWISE_CHATFLOW_BLACKLIST`: Comma-separated list of denied chatflow IDs (optional).
+- `FLOWISE_CHATFLOW_DESCRIPTIONS`: Comma-separated list of `chatflow_id:description` pairs. Example:
+  ```
+  FLOWISE_CHATFLOW_DESCRIPTIONS="abc123:Chatflow One,xyz789:Chatflow Two"
+  ```
 
-- **LowLevel Mode**:
-  - `FLOWISE_CHATFLOW_DESCRIPTIONS`: A comma-separated list of `chatflow_id:Description` pairs. Example:
-    ```
-    FLOWISE_CHATFLOW_DESCRIPTIONS="abc123:My Chatflow,hijk456:Another Chatflow"
-    ```
+### FastMCP Mode (`FLOWISE_SIMPLE_MODE=true`)
 
-> **Important**: If both `FLOWISE_CHATFLOW_ID` and `FLOWISE_ASSISTANT_ID` are set, the server will refuse to start.
+- `FLOWISE_CHATFLOW_ID`: Single Chatflow ID (optional).
+- `FLOWISE_ASSISTANT_ID`: Single Assistant ID (optional).
+- `FLOWISE_CHATFLOW_DESCRIPTION`: Optional description for the single tool exposed.
 
-## Configuration Scenarios
+---
 
-### 1. FastMCP Mode (Default)
+## Filtering Chatflows
 
-**Tools Exposed**:
-- `list_chatflows() -> list`: Lists all available chatflows and assistants.
-- `create_prediction(chatflow_id: str, question: str) -> str`: Creates a prediction using the provided `chatflow_id`.
+Filters can be applied in both modes using the following environment variables:
 
-![image](https://github.com/user-attachments/assets/0901ef9c-5d56-4f1e-a799-1e5d8e8343bd)
+- **Whitelist by ID**:  
+  `FLOWISE_WHITELIST_ID="id1,id2,id3"`
+- **Blacklist by ID**:  
+  `FLOWISE_BLACKLIST_ID="id4,id5"`
+- **Whitelist by Name (Regex)**:  
+  `FLOWISE_WHITELIST_NAME_REGEX=".*important.*"`
+- **Blacklist by Name (Regex)**:  
+  `FLOWISE_BLACKLIST_NAME_REGEX=".*deprecated.*"`
 
-### 2. LowLevel Mode (Dynamic Tools)
+> **Note**: Whitelists take precedence over blacklists. If both are set, the most restrictive rule is applied.
 
-- Tools are dynamically created based on the `FLOWISE_CHATFLOW_DESCRIPTIONS` variable.
-- Each chatflow or assistant is exposed as a separate tool.
-- **Example**:  
-  `predict_mock_chatflow_id(question: str) -> str`
-
-![image](https://github.com/user-attachments/assets/3073c02b-34d2-4adf-a07f-8686863ba473)
-
-### 3. Both `FLOWISE_CHATFLOW_ID` and `FLOWISE_ASSISTANT_ID` Set
-
-- **Behavior**: The server will refuse to start and output an error message.
-
-## Example Usage
-
-### Run via `uvx` with Environment Variables
-
-```bash
-FLOWISE_API_KEY="your_api_key" \
-FLOWISE_API_ENDPOINT="http://localhost:3000" \
-uvx --from git+https://github.com/matthewhand/mcp-flowise mcp-flowise
-```
-
-### Locally with Python
-
-```bash
-export FLOWISE_API_KEY="your_api_key"
-export FLOWISE_API_ENDPOINT="http://localhost:3000"
-python -m mcp_flowise
-```
-
+-
 ## Security
 
-- **Protect Your Credentials**: Ensure that environment variables or `.env` files containing API keys are **never** committed to version control. Add `.env` to your `.gitignore` if necessary.
+- **Protect Your API Key**: Ensure the `FLOWISE_API_KEY` is kept secure and not exposed in logs or repositories.
+- **Environment Configuration**: Use `.env` files or environment variables for sensitive configurations.
 
-```gitignore
+Add `.env` to your `.gitignore`:
+
+```bash
 # .gitignore
 .env
 ```
 
-## Error Handling
+---
 
-- **Both IDs Set**: The server will not start and will output an error message.
-- **Missing API Key**: If `FLOWISE_API_KEY` is not set, authenticated requests may fail.
-- **Invalid Chatflow**: Providing an invalid `chatflow_id` will result in an error.
-- **Missing Descriptions**: In LowLevel mode, all chatflows must have valid descriptions.
+## Troubleshooting
+
+- **Missing API Key**: Ensure `FLOWISE_API_KEY` is set correctly.
+- **Invalid Configuration**: If both `FLOWISE_CHATFLOW_ID` and `FLOWISE_ASSISTANT_ID` are set, the server will refuse to start.
+- **Connection Errors**: Verify `FLOWISE_API_ENDPOINT` is reachable.
+
+---
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## TODO
 
 - [x] Claude desktop integration
 - [x] Fastmcp mode
-- [ ] Lowlevel mode
-    - [x] Register chatflows as tools
-    - [ ] Call registered chatflows
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+- [x] Lowlevel mode
+- [ ] Assistants
