@@ -172,6 +172,17 @@ def run_server():
 
     async def list_tools(request: types.ListToolsRequest) -> types.ServerResult:
         logger.debug("Handling list_tools request.")
+        
+        # Log each tool's details for debugging
+        for tool in tools:
+            logger.debug(
+                "Tool: %s, Description: %s, Input Schema: %s, Model Config: %s",
+                tool.name,
+                tool.description,
+                tool.inputSchema,
+                tool.model_config,
+            )
+        
         return types.ServerResult(root=types.ListToolsResult(tools=tools))
 
     mcp.request_handlers[types.ListToolsRequest] = list_tools
