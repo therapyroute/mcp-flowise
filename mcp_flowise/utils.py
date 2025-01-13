@@ -228,11 +228,11 @@ def flowise_predict(chatflow_id: str, question: str) -> str:
             logger.error("Failed to parse prediction response as JSON. Returning raw response text.")
             return response.text or "Error: Response parsing failed, and no text was available."
 
-    except requests.exceptions.RequestException as e:
+    # except requests.exceptions.RequestException as e:
+    except e:
         # Log and return the error as a string
-        logger.error(f"Error during prediction: {e}")
+        logger.debug(f"Error during prediction: {e}")
         return f"Error: {str(e)}"
-
 
 
 def fetch_chatflows() -> list[dict]:
