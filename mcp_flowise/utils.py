@@ -207,7 +207,7 @@ def flowise_predict(chatflow_id: str, question: str) -> str:
     payload = {
         # "chatflowId": chatflow_id,
         "question": question,
-        "streaming": False
+        # "streaming": False
     }
     logger.debug(f"Sending prediction request to {url} with payload: {payload}")
 
