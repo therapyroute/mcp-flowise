@@ -182,7 +182,6 @@ def filter_chatflows(chatflows: list[dict]) -> list[dict]:
     logger.debug("Filtered chatflows: %d out of %d", len(filtered_chatflows), len(chatflows))
     return filtered_chatflows
 
-
 def flowise_predict(chatflow_id: str, question: str) -> str:
     """
     Sends a question to a specific chatflow ID via the Flowise API and returns the response text.
@@ -215,19 +214,25 @@ def flowise_predict(chatflow_id: str, question: str) -> str:
         logger.debug(f"Prediction response code: HTTP {response.status_code}")
         response.raise_for_status()
 
-        # Parse and extract the 'text' field from the JSON response
-        response_json = response.json()
-        if "text" in response_json:
-            logger.debug(f"Prediction response text: {response_json['text']}")
-            return response_json["text"]
-        else:
-            logger.debug("Response JSON does not contain 'text': %s", response_json)
-            #return "Error: Invalid response format from Flowise API."
-            return response
+        try:
+            # Attempt to parse the JSON response
+            response_json = response.json()
+            if "text" in response_json:
+                logger.debug(f"Prediction response text: {response_json['text']}")
+                return response_json["text"]
+            else:
+                logger.warning("Response JSON does not contain 'text': %s", response_json)
+                return "Error: Invalid response format from Flowise API."
+        except ValueError:
+            # Fallback if JSON parsing fails
+            logger.error("Failed to parse prediction response as JSON. Returning raw response text.")
+            return response.text or "Error: Response parsing failed, and no text was available."
+
     except requests.exceptions.RequestException as e:
         # Log and return the error as a string
         logger.error(f"Error during prediction: {e}")
         return f"Error: {str(e)}"
+
 
 
 def fetch_chatflows() -> list[dict]:
