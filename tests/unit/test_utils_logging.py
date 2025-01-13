@@ -45,9 +45,12 @@ class TestUtilsLogging(unittest.TestCase):
         """
         with patch('sys.stderr', new=StringIO()) as fake_stderr:
             logger = setup_logging(debug=True, log_dir="test_logs", log_file="test.log")
-            self.assertTrue(logger)
+            self.assertTrue(logger)  # Logger should still be initialized
         # Check that the error message was printed to stderr
-        self.assertIn("Failed to create log file handler: No permission to create logs", fake_stderr.getvalue())
+        self.assertIn("Failed to create log directory: No permission to create logs", fake_stderr.getvalue())
+        # Verify logger contains only the StreamHandler
+        self.assertEqual(len(logger.handlers), 1)
+        self.assertIsInstance(logger.handlers[0], logging.StreamHandler)
 
     def test_setup_logging_debug(self):
         """
