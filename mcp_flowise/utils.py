@@ -29,15 +29,20 @@ def setup_logging(debug: bool = False, log_dir: str = None, log_file: str = "deb
 
     Args:
         debug (bool): If True, set log level to DEBUG; otherwise, INFO.
-        log_dir (str): Directory where log files will be stored. Defaults to user's home directory.
-        log_file (str): Name of the log file.
+        log_dir (str): Directory where log files will be stored. Ignored if `FLOWISE_LOGFILE_PATH` is set.
+        log_file (str): Name of the log file. Ignored if `FLOWISE_LOGFILE_PATH` is set.
 
     Returns:
         logging.Logger: Configured logger instance.
     """
-    if log_dir is None:
-        log_dir = os.path.join(os.path.expanduser("~"), "mcp_logs")
-    
+    # Use FLOWISE_LOGFILE_PATH if provided; otherwise, construct the log file path
+    log_path = os.getenv("FLOWISE_LOGFILE_PATH")
+    if not log_path:
+        if log_dir is None:
+            log_dir = os.path.join(os.path.expanduser("~"), "mcp_logs")
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, log_file)
+
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG if debug else logging.INFO)
     logger.propagate = False  # Prevent log messages from propagating to the root logger
@@ -50,8 +55,7 @@ def setup_logging(debug: bool = False, log_dir: str = None, log_file: str = "deb
 
     # Attempt to create FileHandler
     try:
-        os.makedirs(log_dir, exist_ok=True)
-        file_handler = logging.FileHandler(os.path.join(log_dir, log_file), mode="a")
+        file_handler = logging.FileHandler(log_path, mode="a")
         file_handler.setLevel(logging.DEBUG if debug else logging.INFO)
         formatter = logging.Formatter("[%(levelname)s] %(asctime)s - %(message)s")
         file_handler.setFormatter(formatter)
@@ -75,7 +79,7 @@ def setup_logging(debug: bool = False, log_dir: str = None, log_file: str = "deb
     for handler in handlers:
         logger.addHandler(handler)
 
-    logger.info(f"Logging initialized. Writing logs to {os.path.join(log_dir, log_file)}")
+    logger.info(f"Logging initialized. Writing logs to {log_path}")
     return logger
 
 
