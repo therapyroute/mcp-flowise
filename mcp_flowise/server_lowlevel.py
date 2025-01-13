@@ -181,7 +181,7 @@ def run_server():
                 },
             )
             tools.append(tool)
-            logger.info("Registered tool: %s (ID: %s)", tool.name, chatflow["id"])
+            logger.debug("Registered tool: %s (ID: %s)", tool.name, chatflow["id"])
 
         except Exception as e:
             logger.error("Error registering chatflow '%s' (ID: '%s'): %s", chatflow["name"], chatflow["id"], e)
@@ -204,7 +204,7 @@ def run_server():
 
     # Start the server
     async def start_server():
-        logger.info("Starting Low-Level MCP server...")
+        logger.debug("Starting Low-Level MCP server...")
         try:
             async with stdio_server() as (read_stream, write_stream):
                 await mcp.run(
@@ -223,7 +223,7 @@ def run_server():
     try:
         asyncio.run(start_server())
     except KeyboardInterrupt:
-        logger.info("MCP server shutdown initiated by user.")
+        logger.debug("MCP server shutdown initiated by user.")
     except Exception as e:
         logger.critical("Failed to start MCP server: %s", e)
         sys.exit(1)

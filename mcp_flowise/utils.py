@@ -35,13 +35,17 @@ def setup_logging(debug: bool = False, log_dir: str = None, log_file: str = "deb
     Returns:
         logging.Logger: Configured logger instance.
     """
-    # Use FLOWISE_LOGFILE_PATH if provided; otherwise, construct the log file path
     log_path = os.getenv("FLOWISE_LOGFILE_PATH")
     if not log_path:
         if log_dir is None:
             log_dir = os.path.join(os.path.expanduser("~"), "mcp_logs")
-        os.makedirs(log_dir, exist_ok=True)
-        log_path = os.path.join(log_dir, log_file)
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+            log_path = os.path.join(log_dir, log_file)
+        except PermissionError as e:
+            # Fallback to stdout logging if directory creation fails
+            log_path = None
+            print(f"[ERROR] Failed to create log directory: {e}", file=sys.stderr)
 
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG if debug else logging.INFO)
@@ -53,16 +57,15 @@ def setup_logging(debug: bool = False, log_dir: str = None, log_file: str = "deb
 
     handlers = []
 
-    # Attempt to create FileHandler
-    try:
-        file_handler = logging.FileHandler(log_path, mode="a")
-        file_handler.setLevel(logging.DEBUG if debug else logging.INFO)
-        formatter = logging.Formatter("[%(levelname)s] %(asctime)s - %(message)s")
-        file_handler.setFormatter(formatter)
-        handlers.append(file_handler)
-    except Exception as e:
-        # If FileHandler creation fails, print the error to stderr
-        print(f"[ERROR] Failed to create log file handler: {e}", file=sys.stderr)
+    if log_path:
+        try:
+            file_handler = logging.FileHandler(log_path, mode="a")
+            file_handler.setLevel(logging.DEBUG if debug else logging.INFO)
+            formatter = logging.Formatter("[%(levelname)s] %(asctime)s - %(message)s")
+            file_handler.setFormatter(formatter)
+            handlers.append(file_handler)
+        except Exception as e:
+            print(f"[ERROR] Failed to create log file handler: {e}", file=sys.stderr)
 
     # Attempt to create StreamHandler for ERROR level logs
     try:
@@ -72,14 +75,16 @@ def setup_logging(debug: bool = False, log_dir: str = None, log_file: str = "deb
         stdout_handler.setFormatter(formatter)
         handlers.append(stdout_handler)
     except Exception as e:
-        # If StreamHandler creation fails, print the error to stderr
         print(f"[ERROR] Failed to create stdout log handler: {e}", file=sys.stderr)
 
     # Add all handlers to the logger
     for handler in handlers:
         logger.addHandler(handler)
 
-    logger.info(f"Logging initialized. Writing logs to {log_path}")
+    if log_path:
+        logger.debug(f"Logging initialized. Writing logs to {log_path}")
+    else:
+        logger.debug("Logging initialized. Logs will only appear in stdout.")
     return logger
 
 
@@ -174,7 +179,7 @@ def filter_chatflows(chatflows: list[dict]) -> list[dict]:
             logger.debug("Including chatflow '%s' (ID: '%s').", chatflow_name, chatflow_id)
             filtered_chatflows.append(chatflow)
 
-    logger.info("Filtered chatflows: %d out of %d", len(filtered_chatflows), len(chatflows))
+    logger.debug("Filtered chatflows: %d out of %d", len(filtered_chatflows), len(chatflows))
     return filtered_chatflows
 
 
@@ -258,5 +263,5 @@ DEBUG = os.getenv("DEBUG", "").lower() in ("true", "1", "yes")
 logger = setup_logging(debug=DEBUG)
 
 # Log key environment variable values
-logger.info(f"Flowise API Key (redacted): {redact_api_key(FLOWISE_API_KEY)}")
-logger.info(f"Flowise API Endpoint: {FLOWISE_API_ENDPOINT}")
+logger.debug(f"Flowise API Key (redacted): {redact_api_key(FLOWISE_API_KEY)}")
+logger.debug(f"Flowise API Endpoint: {FLOWISE_API_ENDPOINT}")

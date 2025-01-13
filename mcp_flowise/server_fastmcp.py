@@ -123,7 +123,7 @@ def run_server():
         sys.exit(1)
 
     try:
-        logger.info("Starting MCP server (FastMCP version)...")
+        logger.debug("Starting MCP server (FastMCP version)...")
         mcp.run(transport="stdio")
     except Exception as e:
         logger.error("Unhandled exception in MCP server.", exc_info=True)
