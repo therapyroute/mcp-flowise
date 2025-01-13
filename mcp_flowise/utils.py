@@ -218,7 +218,7 @@ def flowise_predict(chatflow_id: str, question: str) -> str:
             # Attempt to parse the JSON response
             response_json = response.json()
             if "text" in response_json:
-                logger.debug(f"Prediction response text: {response_json['text']}")
+                # logger.debug(f"Prediction response text: {response_json['text']}")
                 return response_json["text"]
             else:
                 logger.warning("Response JSON does not contain 'text': %s", response_json)

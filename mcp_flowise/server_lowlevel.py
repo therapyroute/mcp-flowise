@@ -86,6 +86,8 @@ async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResu
             )
 
         chatflow_id = NAME_TO_ID_MAPPING[tool_name]
+        logger.debug("Mapped tool '%s' to chatflow ID: %s", tool_name, chatflow_id)
+
         question = request.params.arguments.get("question")
         if not question:
             logger.error("Missing 'question' argument in request for tool: %s", tool_name)
@@ -97,8 +99,9 @@ async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResu
 
         logger.debug("Dispatching prediction for chatflow_id: %s with question: %s", chatflow_id, question)
 
+        # Call Flowise API for prediction
         result = flowise_predict(chatflow_id, question)
-        # logger.debug("Prediction result: %s", result)
+        logger.debug("Prediction result: %s", result)
 
         # Directly use the result as the response text
         return types.ServerResult(
