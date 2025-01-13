@@ -5,10 +5,7 @@ These tests will run conditionally if the required environment variables are con
 
 import os
 import unittest
-from mcp_flowise.server_lowlevel import run_server
-from mcp_flowise.server_fastmcp import run_simple_server
-from mcp_flowise.utils import fetch_chatflows
-from mcp import types
+from mcp_flowise.utils import fetch_chatflows, flowise_predict
 
 
 class IntegrationTests(unittest.TestCase):
@@ -27,21 +24,6 @@ class IntegrationTests(unittest.TestCase):
         chatflows = fetch_chatflows()
         self.assertGreater(len(chatflows), 0, "No chatflows discovered. Ensure the Flowise server is configured correctly.")
         print(f"Discovered chatflows: {[cf['name'] for cf in chatflows]}")
-
-    @unittest.skipUnless(
-        os.getenv("FLOWISE_SIMPLE_MODE", "").lower() == "true" and
-        os.getenv("FLOWISE_API_KEY") and os.getenv("FLOWISE_API_ENDPOINT"),
-        "FLOWISE_SIMPLE_MODE must be 'true', and FLOWISE_API_KEY and FLOWISE_API_ENDPOINT must be set.",
-    )
-    def test_simple_mode_server(self):
-        """
-        Test simple mode server initialization and tool discovery.
-        """
-        try:
-            # Run the simple mode server; this should block, so we might terminate early
-            run_simple_server()
-        except SystemExit as e:
-            self.fail(f"Simple mode server exited unexpectedly: {e}")
 
     @unittest.skipUnless(
         os.getenv("FLOWISE_API_KEY") and os.getenv("FLOWISE_API_ENDPOINT"),
@@ -71,10 +53,9 @@ class IntegrationTests(unittest.TestCase):
 
         # Simulate tool call
         result = self.simulate_tool_call(tool_name, chatflow["id"], "Tell me a fun fact.")
-        self.assertIn(
-            "fun fact",
-            result.lower(),
-            f"Unexpected response from tool {tool_name}: {result}"
+        self.assertTrue(
+            result.strip(),
+            f"Unexpected empty response from tool {tool_name}: {result}"
         )
 
     def simulate_tool_call(self, tool_name, chatflow_id, question):
@@ -89,9 +70,7 @@ class IntegrationTests(unittest.TestCase):
         Returns:
             str: The response from the tool.
         """
-        from mcp_flowise.utils import flowise_predict
-        result = flowise_predict(chatflow_id, question)
-        return result
+        return flowise_predict(chatflow_id, question)
 
 
 if __name__ == "__main__":

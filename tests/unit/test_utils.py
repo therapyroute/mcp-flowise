@@ -20,7 +20,10 @@ class TestUtils(unittest.TestCase):
         """
         Test successful prediction response.
         """
-        mock_post.return_value = Mock(status_code=200, text="Mock Prediction")
+        mock_post.return_value = Mock(
+            status_code=200,
+            json=Mock(return_value={"text": "Mock Prediction"}),
+        )
         response = flowise_predict("valid_chatflow_id", "What's AI?")
         self.assertEqual(response, "Mock Prediction")
         mock_post.assert_called_once()
@@ -44,20 +47,6 @@ class TestUtils(unittest.TestCase):
         self.assertIn("Error:", response)
         mock_post.assert_called_once()
 
-    # @patch("requests.get")
-    # def test_fetch_chatflows_success(self, mock_get):
-    #     """
-    #     Test successful chatflow fetching.
-    #     """
-    #     mock_get.return_value = Mock(status_code=200, json=Mock(return_value=[
-    #         {"id": "chatflow1", "name": "Chatflow One"},
-    #         {"id": "chatflow2", "name": "Chatflow Two"},
-    #     ]))
-    #     chatflows = fetch_chatflows()
-    #     self.assertEqual(len(chatflows), 2)
-    #     self.assertEqual(chatflows[0]["id"], "chatflow1")
-    #     mock_get.assert_called_once()
-
     @patch("requests.get", side_effect=requests.ConnectionError("Connection Error"))
     def test_fetch_chatflows_connection_error(self, mock_get):
         """
@@ -76,3 +65,21 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(chatflows, [])
         mock_get.assert_called_once()
 
+    @patch("requests.get")
+    def test_fetch_chatflows_success(self, mock_get):
+        """
+        Test successful fetching of chatflows.
+        """
+        mock_get.return_value = Mock(
+            status_code=200,
+            json=Mock(return_value=[{"id": "123", "name": "Test Chatflow"}])
+        )
+        chatflows = fetch_chatflows()
+        self.assertEqual(len(chatflows), 1)
+        self.assertEqual(chatflows[0]["id"], "123")
+        self.assertEqual(chatflows[0]["name"], "Test Chatflow")
+        mock_get.assert_called_once()
+
+
+if __name__ == "__main__":
+    unittest.main()
