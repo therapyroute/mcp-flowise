@@ -214,8 +214,9 @@ def flowise_predict(chatflow_id: str, question: str) -> str:
     try:
         # Send POST request to the Flowise API
         response = requests.post(url, json=payload, headers=headers, timeout=30)
+        logger.debug(f"Prediction response code: HTTP {response.status_code}")
         response.raise_for_status()
-        logger.debug(f"Prediction response (HTTP {response.status_code}): {response.text}")
+        logger.debug(f"Prediction response text: {response.text}")
         return response.text
     except requests.exceptions.RequestException as e:
         # Log and return the error as a string
