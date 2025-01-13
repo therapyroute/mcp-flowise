@@ -68,7 +68,6 @@ def get_chatflow_descriptions() -> Dict[str, str]:
     logger.debug("Parsed FLOWISE_CHATFLOW_DESCRIPTIONS: %s", descriptions)
     return descriptions
 
-
 async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResult:
     """
     Dispatcher handler that routes CallToolRequest to the appropriate tool handler based on the tool name.
@@ -86,24 +85,25 @@ async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResu
             )
 
         chatflow_id = NAME_TO_ID_MAPPING[tool_name]
-        logger.debug("Mapped tool '%s' to chatflow ID: %s", tool_name, chatflow_id)
-
-        question = request.params.arguments.get("question")
+        question = request.params.arguments.get("question", "")
         if not question:
-            logger.error("Missing 'question' argument in request for tool: %s", tool_name)
+            logger.error("Missing 'question' argument for tool: %s", tool_name)
             return types.ServerResult(
                 root=types.CallToolResult(
-                    content=[types.TextContent(type="text", text='Missing "question" argument')]
+                    content=[types.TextContent(type="text", text="Missing 'question' argument.")]
                 )
             )
 
         logger.debug("Dispatching prediction for chatflow_id: %s with question: %s", chatflow_id, question)
 
-        # Call Flowise API for prediction
-        result = flowise_predict(chatflow_id, question)
-        logger.debug("Prediction result: %s", result)
+        # Safeguard against prediction errors
+        try:
+            result = flowise_predict(chatflow_id, question)
+            logger.debug("Prediction result: %s", result)
+        except Exception as pred_err:
+            logger.error("Error during prediction: %s", pred_err, exc_info=True)
+            result = "Error occurred during prediction."
 
-        # Directly use the result as the response text
         return types.ServerResult(
             root=types.CallToolResult(
                 content=[types.TextContent(type="text", text=result)]
@@ -113,10 +113,9 @@ async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResu
         logger.error("Unhandled exception in dispatcher_handler: %s", e, exc_info=True)
         return types.ServerResult(
             root=types.CallToolResult(
-                content=[types.TextContent(type="text", text="An internal server error occurred.")]
+                content=[types.TextContent(type="text", text="Internal server error.")]
             )
         )
-
 
 def run_server():
     '''
