@@ -109,7 +109,7 @@ def create_prediction(*, chatflow_id: str = None, question: str) -> str:
         return flowise_predict(FLOWISE_ASSISTANT_ID, question)
 
 
-def run_server():
+def run_simple_server():
     """
     Run the FastMCP version of the Flowise server.
 

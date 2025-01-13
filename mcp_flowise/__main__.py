@@ -31,14 +31,16 @@ def main():
     FLOWISE_SIMPLE_MODE = os.getenv("FLOWISE_SIMPLE_MODE", "").lower() in ("true", "1", "yes")
     if FLOWISE_SIMPLE_MODE:
         logger.debug("FLOWISE_SIMPLE_MODE is enabled. Launching FastMCP Server.")
-        from .server_fastmcp import run_server
+        from .server_fastmcp import run_simple_server
+        selected_server = run_simple_server
     else:
         logger.debug("FLOWISE_SIMPLE_MODE is not enabled. Launching Low-Level Server.")
         from .server_lowlevel import run_server
+        selected_server = run_server
 
     # Run the selected server
     try:
-        run_server()
+        selected_server()
     except Exception as e:
         logger.critical("Unhandled exception occurred while running the server.", exc_info=True)
         sys.exit(1)
