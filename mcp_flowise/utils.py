@@ -192,7 +192,7 @@ def flowise_predict(chatflow_id: str, question: str) -> str:
         question (str): The question or prompt to send to the chatflow.
 
     Returns:
-        str: The response text from the Flowise API or an error string if something went wrong.
+        str: The extracted 'text' field from the Flowise API response, or an error message if something goes wrong.
     """
     logger = logging.getLogger(__name__)
 
@@ -205,9 +205,7 @@ def flowise_predict(chatflow_id: str, question: str) -> str:
         headers["Authorization"] = f"Bearer {FLOWISE_API_KEY}"
 
     payload = {
-        # "chatflowId": chatflow_id,
         "question": question,
-        # "streaming": False
     }
     logger.debug(f"Sending prediction request to {url} with payload: {payload}")
 
@@ -216,8 +214,15 @@ def flowise_predict(chatflow_id: str, question: str) -> str:
         response = requests.post(url, json=payload, headers=headers, timeout=30)
         logger.debug(f"Prediction response code: HTTP {response.status_code}")
         response.raise_for_status()
-        logger.debug(f"Prediction response text: {response.text}")
-        return response.text
+
+        # Parse and extract the 'text' field from the JSON response
+        response_json = response.json()
+        if "text" in response_json:
+            logger.debug(f"Prediction response text: {response_json['text']}")
+            return response_json["text"]
+        else:
+            logger.error("Response JSON does not contain 'text': %s", response_json)
+            return "Error: Invalid response format from Flowise API."
     except requests.exceptions.RequestException as e:
         # Log and return the error as a string
         logger.error(f"Error during prediction: {e}")
