@@ -229,7 +229,7 @@ def flowise_predict(chatflow_id: str, question: str) -> str:
             return response.text or "Error: Response parsing failed, and no text was available."
 
     # except requests.exceptions.RequestException as e:
-    except e:
+    except Exception as e:
         # Log and return the error as a string
         logger.debug(f"Error during prediction: {e}")
         return f"Error: {str(e)}"
