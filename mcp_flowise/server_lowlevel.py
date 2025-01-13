@@ -13,11 +13,10 @@ skipping those chatflows.
 '''
 
 import os
-import re
 import sys
 import asyncio
 import json
-from typing import List, Dict
+from typing import List, Dict, Any
 from dotenv import load_dotenv
 from mcp import types
 from mcp.server.lowlevel import Server
@@ -39,6 +38,7 @@ logger = setup_logging(debug=DEBUG)
 
 # Global tool mapping: tool name to chatflow ID
 NAME_TO_ID_MAPPING = {}
+NAME_TO_ID_MAPPING: Dict[str, str] = {}
 
 # Initialize the Low-Level MCP Server
 mcp = Server("FlowiseMCP-with-EnvAuth")
@@ -96,14 +96,15 @@ async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResu
 
         logger.debug("Dispatching prediction for chatflow_id: %s with question: %s", chatflow_id, question)
 
-        # Safeguard against prediction errors
+        # Call the prediction function
         try:
             result = flowise_predict(chatflow_id, question)
             logger.debug("Prediction result: %s", result)
         except Exception as pred_err:
             logger.error("Error during prediction: %s", pred_err, exc_info=True)
-            result = "Error occurred during prediction."
+            result = json.dumps({"error": "Error occurred during prediction."})
 
+        # Pass the raw JSON response or error JSON back to the client
         return types.ServerResult(
             root=types.CallToolResult(
                 content=[types.TextContent(type="text", text=result)]
@@ -113,24 +114,21 @@ async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResu
         logger.error("Unhandled exception in dispatcher_handler: %s", e, exc_info=True)
         return types.ServerResult(
             root=types.CallToolResult(
-                content=[types.TextContent(type="text", text="Internal server error.")]
+                content=[types.TextContent(type="text", text=json.dumps({"error": "Internal server error."}))]
             )
         )
 
-def run_server():
-    '''
-    Run the Low-Level Flowise server by registering tools dynamically.
-    '''
-    try:
-        chatflows = fetch_chatflows()
-        if not chatflows:
-            raise ValueError("No chatflows retrieved from the Flowise API.")
-    except Exception as e:
-        logger.critical("Failed to start server: %s", e)
-        sys.exit(1)
+def register_tools(chatflows: List[Dict[str, Any]], chatflow_descriptions: Dict[str, str]) -> List[types.Tool]:
+    """
+    Register tools dynamically based on the provided chatflows.
 
-    chatflow_descriptions = get_chatflow_descriptions()
+    Args:
+        chatflows (List[Dict[str, Any]]): List of chatflows retrieved from the Flowise API.
+        chatflow_descriptions (Dict[str, str]): Dictionary mapping chatflow IDs to descriptions.
 
+    Returns:
+        List[types.Tool]: List of registered tools.
+    """
     tools = []
     for chatflow in chatflows:
         try:
@@ -163,6 +161,67 @@ def run_server():
         except Exception as e:
             logger.error("Error registering chatflow '%s' (ID: '%s'): %s", chatflow["name"], chatflow["id"], e)
 
+    return tools
+
+async def list_tools(request: types.ListToolsRequest) -> types.ServerResult:
+    """
+    Handler for ListToolsRequest to list all registered tools.
+
+    Args:
+        request (types.ListToolsRequest): The request to list tools.
+
+    Returns:
+        types.ServerResult: The result containing the list of tools.
+    """
+    logger.debug("Handling list_tools request.")
+    
+    # Log each tool's details for debugging
+    for tool in tools:
+        logger.debug(
+            "Tool: %s, Description: %s, Input Schema: %s, Model Config: %s",
+            tool.name,
+            tool.description,
+            tool.inputSchema,
+            tool.model_config,
+        )
+    
+    return types.ServerResult(root=types.ListToolsResult(tools=tools))
+
+async def start_server():
+    """
+    Start the Low-Level MCP server.
+    """
+    logger.debug("Starting Low-Level MCP server...")
+    try:
+        async with stdio_server() as (read_stream, write_stream):
+            await mcp.run(
+                read_stream,
+                write_stream,
+                initialization_options=InitializationOptions(
+                    server_name="FlowiseMCP-with-EnvAuth",
+                    server_version="0.1.0",
+                    capabilities=types.ServerCapabilities(),
+                ),
+            )
+    except Exception as e:
+        logger.critical("Unhandled exception in MCP server: %s", e)
+        sys.exit(1)
+
+def run_server():
+    """
+    Run the Low-Level Flowise server by registering tools dynamically.
+    """
+    try:
+        chatflows = fetch_chatflows()
+        if not chatflows:
+            raise ValueError("No chatflows retrieved from the Flowise API.")
+    except Exception as e:
+        logger.critical("Failed to start server: %s", e)
+        sys.exit(1)
+
+    chatflow_descriptions = get_chatflow_descriptions()
+    tools = register_tools(chatflows, chatflow_descriptions)
+
     if not tools:
         logger.critical("No valid tools registered. Shutting down the server.")
         sys.exit(1)
@@ -170,40 +229,8 @@ def run_server():
     mcp.request_handlers[types.CallToolRequest] = dispatcher_handler
     logger.debug("Registered dispatcher_handler for CallToolRequest.")
 
-    async def list_tools(request: types.ListToolsRequest) -> types.ServerResult:
-        logger.debug("Handling list_tools request.")
-        
-        # Log each tool's details for debugging
-        for tool in tools:
-            logger.debug(
-                "Tool: %s, Description: %s, Input Schema: %s, Model Config: %s",
-                tool.name,
-                tool.description,
-                tool.inputSchema,
-                tool.model_config,
-            )
-        
-        return types.ServerResult(root=types.ListToolsResult(tools=tools))
-
     mcp.request_handlers[types.ListToolsRequest] = list_tools
     logger.debug("Registered list_tools handler.")
-
-    async def start_server():
-        logger.debug("Starting Low-Level MCP server...")
-        try:
-            async with stdio_server() as (read_stream, write_stream):
-                await mcp.run(
-                    read_stream,
-                    write_stream,
-                    initialization_options=InitializationOptions(
-                        server_name="FlowiseMCP-with-EnvAuth",
-                        server_version="0.1.0",
-                        capabilities=types.ServerCapabilities(),
-                    ),
-                )
-        except Exception as e:
-            logger.critical("Unhandled exception in MCP server: %s", e)
-            sys.exit(1)
 
     try:
         asyncio.run(start_server())
@@ -212,7 +239,6 @@ def run_server():
     except Exception as e:
         logger.critical("Failed to start MCP server: %s", e)
         sys.exit(1)
-
 
 if __name__ == "__main__":
     run_server()

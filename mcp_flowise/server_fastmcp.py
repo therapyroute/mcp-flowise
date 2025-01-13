@@ -80,34 +80,26 @@ def create_prediction(*, chatflow_id: str = None, question: str) -> str:
         question (str): The question or prompt to send to the chatflow.
 
     Returns:
-        str: The prediction result or an error message.
+        str: The raw JSON response from Flowise API or an error message if something goes wrong.
     """
     logger.debug(f"create_prediction called with chatflow_id={chatflow_id}, question={question}")
     chatflow_id = chatflow_id or FLOWISE_CHATFLOW_ID
 
     if not chatflow_id and not FLOWISE_ASSISTANT_ID:
         logger.error("No chatflow_id or assistant_id provided or pre-configured.")
-        return "Error: chatflow_id or assistant_id is required."
+        return json.dumps({"error": "chatflow_id or assistant_id is required"})
 
-    if chatflow_id:
-        # If a chatflow ID is provided, attach a custom description if configured
-        if FLOWISE_CHATFLOW_DESCRIPTION:
-            logger.debug(f"Using description for chatflow {chatflow_id}: {FLOWISE_CHATFLOW_DESCRIPTION}")
+    try:
+        # Determine which chatflow ID to use
+        target_chatflow_id = chatflow_id or FLOWISE_ASSISTANT_ID
 
-            # Nested tool with custom description
-            @mcp.tool(description=FLOWISE_CHATFLOW_DESCRIPTION)
-            def create_prediction_with_description(*, question: str) -> str:
-                logger.debug(f"create_prediction_with_description called with chatflow_id={chatflow_id}, question={question}")
-                return flowise_predict(chatflow_id, question)
-
-            return create_prediction_with_description(question=question)
-        else:
-            logger.debug(f"No custom description set for chatflow {chatflow_id}.")
-            return flowise_predict(chatflow_id, question)
-    else:
-        # Use assistant ID if no chatflow ID is provided
-        return flowise_predict(FLOWISE_ASSISTANT_ID, question)
-
+        # Call the prediction function and return the raw JSON result
+        result = flowise_predict(target_chatflow_id, question)
+        logger.debug(f"Prediction result: {result}")
+        return result  # Returning raw JSON as a string
+    except Exception as e:
+        logger.error(f"Unhandled exception in create_prediction: {e}", exc_info=True)
+        return json.dumps({"error": str(e)})
 
 def run_simple_server():
     """
@@ -128,7 +120,3 @@ def run_simple_server():
     except Exception as e:
         logger.error("Unhandled exception in MCP server.", exc_info=True)
         sys.exit(1)
-
-
-if __name__ == "__main__":
-    run_server()

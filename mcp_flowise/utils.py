@@ -13,6 +13,7 @@ import sys
 import logging
 import requests
 import re
+import json
 from dotenv import load_dotenv
 
 # Load environment variables from .env if present
@@ -184,14 +185,14 @@ def filter_chatflows(chatflows: list[dict]) -> list[dict]:
 
 def flowise_predict(chatflow_id: str, question: str) -> str:
     """
-    Sends a question to a specific chatflow ID via the Flowise API and returns the response text.
+    Sends a question to a specific chatflow ID via the Flowise API and returns the response JSON text.
 
     Args:
         chatflow_id (str): The ID of the Flowise chatflow to be used.
         question (str): The question or prompt to send to the chatflow.
 
     Returns:
-        str: The extracted 'text' field from the Flowise API response, or an error message if something goes wrong.
+        str: The raw JSON response text from the Flowise API, or an error message if something goes wrong.
     """
     logger = logging.getLogger(__name__)
 
@@ -203,9 +204,7 @@ def flowise_predict(chatflow_id: str, question: str) -> str:
     if FLOWISE_API_KEY:
         headers["Authorization"] = f"Bearer {FLOWISE_API_KEY}"
 
-    payload = {
-        "question": question,
-    }
+    payload = {"question": question}
     logger.debug(f"Sending prediction request to {url} with payload: {payload}")
 
     try:
@@ -214,25 +213,16 @@ def flowise_predict(chatflow_id: str, question: str) -> str:
         logger.debug(f"Prediction response code: HTTP {response.status_code}")
         response.raise_for_status()
 
-        try:
-            # Attempt to parse the JSON response
-            response_json = response.json()
-            if "text" in response_json:
-                # logger.debug(f"Prediction response text: {response_json['text']}")
-                return response_json["text"]
-            else:
-                logger.warning("Response JSON does not contain 'text': %s", response_json)
-                return "Error: Invalid response format from Flowise API."
-        except ValueError:
-            # Fallback if JSON parsing fails
-            logger.error("Failed to parse prediction response as JSON. Returning raw response text.")
-            return response.text or "Error: Response parsing failed, and no text was available."
+        # Log the raw response text for debugging
+        logger.debug(f"Raw prediction response: {response.text}")
 
-    # except requests.exceptions.RequestException as e:
-    except Exception as e:
-        # Log and return the error as a string
-        logger.debug(f"Error during prediction: {e}")
-        return f"Error: {str(e)}"
+        # Return the raw JSON response text
+        return response.text
+
+    except requests.exceptions.RequestException as e:
+        # Log and return an error message
+        logger.error(f"Error during prediction: {e}")
+        return json.dumps({"error": str(e)})
 
 
 def fetch_chatflows() -> list[dict]:
