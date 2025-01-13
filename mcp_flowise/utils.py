@@ -205,7 +205,7 @@ def flowise_predict(chatflow_id: str, question: str) -> str:
         headers["Authorization"] = f"Bearer {FLOWISE_API_KEY}"
 
     payload = {
-        "chatflowId": chatflow_id,
+        # "chatflowId": chatflow_id,
         "question": question,
         "streaming": False
     }
