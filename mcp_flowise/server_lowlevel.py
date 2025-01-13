@@ -69,19 +69,14 @@ def get_chatflow_descriptions() -> Dict[str, str]:
 
 
 async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResult:
-    '''
+    """
     Dispatcher handler that routes CallToolRequest to the appropriate tool handler based on the tool name.
-
-    Args:
-        request (types.CallToolRequest): The incoming tool call request.
-
-    Returns:
-        types.ServerResult: The result of the tool execution.
-    '''
+    """
     try:
         tool_name = request.params.name
         logger.debug("Dispatcher received CallToolRequest for tool: %s", tool_name)
 
+        # Check if tool name is valid
         if tool_name not in NAME_TO_ID_MAPPING:
             logger.error("Unknown tool requested: %s", tool_name)
             return types.ServerResult(
@@ -90,9 +85,11 @@ async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResu
                 )
             )
 
+        # Map tool name to chatflow ID
         chatflow_id = NAME_TO_ID_MAPPING[tool_name]
         question = request.params.arguments.get("question")
 
+        # Validate the 'question' argument
         if not question:
             logger.error("Missing 'question' argument in request for tool: %s", tool_name)
             return types.ServerResult(
@@ -102,24 +99,28 @@ async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResu
             )
 
         logger.debug("Dispatching prediction for chatflow_id: %s with question: %s", chatflow_id, question)
-        result = flowise_predict(chatflow_id, question)
-        logger.debug("Received prediction result: %s", result)
 
+        # Call Flowise API for prediction
+        result = flowise_predict(chatflow_id, question)
+        logger.debug("Prediction result: %s", result)
+
+        # Extract the 'text' field from the result
+        try:
+            result_data = json.loads(result)
+            response_text = result_data.get("text", "No response text available.")
+            logger.debug("Extracted response text: %s", response_text)
+        except json.JSONDecodeError:
+            response_text = "Invalid response format from Flowise API."
+            logger.warning("Failed to parse prediction response as JSON.")
+
+        # Return the extracted response text
         return types.ServerResult(
             root=types.CallToolResult(
-                content=[types.TextContent(type="text", text=result)]
+                content=[types.TextContent(type="text", text=response_text)]
             )
         )
     except Exception as e:
         logger.error("Unhandled exception in dispatcher_handler: %s", e, exc_info=True)
-
-        try:
-            import json
-            raw_request = json.dumps(request.model_dump(), indent=2) if hasattr(request, 'model_dump') else str(request)
-            logger.error("Raw request causing the error: %s", raw_request)
-        except Exception as log_error:
-            logger.error("Failed to serialize the raw request: %s", log_error)
-
         return types.ServerResult(
             root=types.CallToolResult(
                 content=[types.TextContent(type="text", text="An internal server error occurred. Please check logs.")]
