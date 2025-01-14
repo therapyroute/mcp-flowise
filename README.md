@@ -65,17 +65,7 @@ You can integrate `mcp-flowise` into your MCP ecosystem by adding it to the `mcp
 
 ## Modes of Operation
 
-### 1. LowLevel Mode (Default)
-
-**Features**:
-- Dynamically registers all chatflows as separate tools.
-- Tools are named after chatflow names (normalized).
-- Uses descriptions from the `FLOWISE_CHATFLOW_DESCRIPTIONS` variable, falling back to chatflow names if no description is provided.
-
-**Example**:
-- `my_tool(question: str) -> str` dynamically created for a chatflow.
-
-### 2. FastMCP Mode (Simple Mode)
+### 1. FastMCP Mode (Simple Mode)
 
 Enabled by setting `FLOWISE_SIMPLE_MODE=true`. This mode:
 - Exposes two tools: `list_chatflows` and `create_prediction`.
@@ -86,6 +76,15 @@ Enabled by setting `FLOWISE_SIMPLE_MODE=true`. This mode:
 <img src="https://github.com/user-attachments/assets/0901ef9c-5d56-4f1e-a799-1e5d8e8343bd" alt="FastMCP Mode">
 </p>
 
+### 2. LowLevel Mode (FLOWISE_SIMPLE_MODE=False)
+
+**Features**:
+- Dynamically registers all chatflows as separate tools.
+- Tools are named after chatflow names (normalized).
+- Uses descriptions from the `FLOWISE_CHATFLOW_DESCRIPTIONS` variable, falling back to chatflow names if no description is provided.
+
+**Example**:
+- `my_tool(question: str) -> str` dynamically created for a chatflow.
 
 ---
 ## Running on Windows with `uvx`
