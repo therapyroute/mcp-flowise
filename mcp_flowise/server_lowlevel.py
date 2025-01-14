@@ -38,6 +38,7 @@ logger = setup_logging(debug=DEBUG)
 
 # Global tool mapping: tool name to chatflow ID
 NAME_TO_ID_MAPPING: Dict[str, str] = {}
+tools: List[types.Tool] = []
 
 # Initialize the Low-Level MCP Server
 mcp = Server("FlowiseMCP-with-EnvAuth")
@@ -119,6 +120,20 @@ async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResu
         )
 
 
+async def list_tools(request: types.ListToolsRequest) -> types.ServerResult:
+    """
+    Handler for ListToolsRequest to list all registered tools.
+
+    Args:
+        request (types.ListToolsRequest): The request to list tools.
+
+    Returns:
+        types.ServerResult: The result containing the list of tools.
+    """
+    logger.debug("Handling list_tools request.")
+    return types.ServerResult(root=types.ListToolsResult(tools=tools))
+
+
 def register_tools(chatflows: List[Dict[str, Any]], chatflow_descriptions: Dict[str, str]) -> List[types.Tool]:
     """
     Register tools dynamically based on the provided chatflows.
@@ -130,7 +145,8 @@ def register_tools(chatflows: List[Dict[str, Any]], chatflow_descriptions: Dict[
     Returns:
         List[types.Tool]: List of registered tools.
     """
-    tools = []
+    global tools
+    tools = []  # Clear existing tools before re-registration
     for chatflow in chatflows:
         try:
             normalized_name = normalize_tool_name(chatflow["name"])
@@ -199,7 +215,7 @@ def run_server():
         sys.exit(1)
 
     chatflow_descriptions = get_chatflow_descriptions()
-    tools = register_tools(chatflows, chatflow_descriptions)
+    register_tools(chatflows, chatflow_descriptions)
 
     if not tools:
         logger.critical("No valid tools registered. Shutting down the server.")
@@ -207,6 +223,9 @@ def run_server():
 
     mcp.request_handlers[types.CallToolRequest] = dispatcher_handler
     logger.debug("Registered dispatcher_handler for CallToolRequest.")
+
+    mcp.request_handlers[types.ListToolsRequest] = list_tools
+    logger.debug("Registered list_tools handler.")
 
     try:
         asyncio.run(start_server())
