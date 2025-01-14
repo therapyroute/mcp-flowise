@@ -37,7 +37,6 @@ DEBUG = os.getenv("DEBUG", "").lower() in ("true", "1", "yes")
 logger = setup_logging(debug=DEBUG)
 
 # Global tool mapping: tool name to chatflow ID
-NAME_TO_ID_MAPPING = {}
 NAME_TO_ID_MAPPING: Dict[str, str] = {}
 
 # Initialize the Low-Level MCP Server
@@ -67,6 +66,7 @@ def get_chatflow_descriptions() -> Dict[str, str]:
             descriptions[chatflow_id] = description
     logger.debug("Parsed FLOWISE_CHATFLOW_DESCRIPTIONS: %s", descriptions)
     return descriptions
+
 
 async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResult:
     """
@@ -114,9 +114,10 @@ async def dispatcher_handler(request: types.CallToolRequest) -> types.ServerResu
         logger.error("Unhandled exception in dispatcher_handler: %s", e, exc_info=True)
         return types.ServerResult(
             root=types.CallToolResult(
-                content=[types.TextContent(type="text", text=json.dumps({"error": "Internal server error."}))]
+                content=[types.TextContent(type="text", text=json.dumps({"error": "Internal server error."}))]  # Ensure JSON is returned
             )
         )
+
 
 def register_tools(chatflows: List[Dict[str, Any]], chatflow_descriptions: Dict[str, str]) -> List[types.Tool]:
     """
@@ -163,29 +164,6 @@ def register_tools(chatflows: List[Dict[str, Any]], chatflow_descriptions: Dict[
 
     return tools
 
-async def list_tools(request: types.ListToolsRequest) -> types.ServerResult:
-    """
-    Handler for ListToolsRequest to list all registered tools.
-
-    Args:
-        request (types.ListToolsRequest): The request to list tools.
-
-    Returns:
-        types.ServerResult: The result containing the list of tools.
-    """
-    logger.debug("Handling list_tools request.")
-    
-    # Log each tool's details for debugging
-    for tool in tools:
-        logger.debug(
-            "Tool: %s, Description: %s, Input Schema: %s, Model Config: %s",
-            tool.name,
-            tool.description,
-            tool.inputSchema,
-            tool.model_config,
-        )
-    
-    return types.ServerResult(root=types.ListToolsResult(tools=tools))
 
 async def start_server():
     """
@@ -206,6 +184,7 @@ async def start_server():
     except Exception as e:
         logger.critical("Unhandled exception in MCP server: %s", e)
         sys.exit(1)
+
 
 def run_server():
     """
@@ -229,9 +208,6 @@ def run_server():
     mcp.request_handlers[types.CallToolRequest] = dispatcher_handler
     logger.debug("Registered dispatcher_handler for CallToolRequest.")
 
-    mcp.request_handlers[types.ListToolsRequest] = list_tools
-    logger.debug("Registered list_tools handler.")
-
     try:
         asyncio.run(start_server())
     except KeyboardInterrupt:
@@ -239,6 +215,7 @@ def run_server():
     except Exception as e:
         logger.critical("Failed to start MCP server: %s", e)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     run_server()
