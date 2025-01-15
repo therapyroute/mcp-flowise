@@ -211,7 +211,7 @@ def flowise_predict(chatflow_id: str, question: str) -> str:
         # Send POST request to the Flowise API
         response = requests.post(url, json=payload, headers=headers, timeout=30)
         logger.debug(f"Prediction response code: HTTP {response.status_code}")
-        response.raise_for_status()
+        # response.raise_for_status()
 
         # Log the raw response text for debugging
         logger.debug(f"Raw prediction response: {response.text}")
