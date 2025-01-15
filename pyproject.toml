@@ -22,3 +22,6 @@ mcp-flowise = "mcp_flowise.__main__:main"
 dev = [
     "pytest>=8.3.4",
 ]
+
+[tool.setuptools.packages]
+find = {include = ["mcp_flowise", "mcp_flowise.*"]}
