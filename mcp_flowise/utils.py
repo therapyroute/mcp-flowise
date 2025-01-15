@@ -219,7 +219,8 @@ def flowise_predict(chatflow_id: str, question: str) -> str:
         # Return the raw JSON response text
         return response.text
 
-    except requests.exceptions.RequestException as e:
+    #except requests.exceptions.RequestException as e:
+    except Exception as e:
         # Log and return an error message
         logger.error(f"Error during prediction: {e}")
         return json.dumps({"error": str(e)})
@@ -254,7 +255,8 @@ def fetch_chatflows() -> list[dict]:
 
         logger.debug(f"Fetched chatflows: {simplified_chatflows}")
         return filter_chatflows(simplified_chatflows)
-    except requests.exceptions.RequestException as e:
+    #except requests.exceptions.RequestException as e:
+    except Exception as e:
         # Log and return an empty list on error
         logger.error(f"Error fetching chatflows: {e}")
         return []
