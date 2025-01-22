@@ -1,5 +1,6 @@
-
 # mcp-flowise
+
+[![smithery badge](https://smithery.ai/badge/@matthewhand/mcp-flowise)](https://smithery.ai/server/@matthewhand/mcp-flowise)
 
 `mcp-flowise` is a Python package implementing a Model Context Protocol (MCP) server that integrates with the Flowise API. It provides a standardized and flexible way to list chatflows, create predictions, and dynamically register tools for Flowise chatflows or assistants.
 
@@ -24,6 +25,14 @@ It supports two operation modes:
 ---
 
 ## Installation
+
+### Installing via Smithery
+
+To install mcp-flowise for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@matthewhand/mcp-flowise):
+
+```bash
+npx -y @smithery/cli install @matthewhand/mcp-flowise --client claude
+```
 
 ### Prerequisites
 
