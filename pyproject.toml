@@ -12,7 +12,8 @@ authors = [
 ]
 dependencies = [
   "mcp[cli]>=1.2.0",
-  "requests>=2.25.0"
+  "python-dotenv>=1.0.1",
+  "requests>=2.25.0",
 ]
 
 [project.scripts]

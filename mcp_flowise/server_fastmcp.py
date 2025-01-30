@@ -33,7 +33,7 @@ logger.debug(f"Flowise Assistant ID: {FLOWISE_ASSISTANT_ID}")
 logger.debug(f"Flowise Chatflow Description: {FLOWISE_CHATFLOW_DESCRIPTION}")
 
 # Initialize MCP Server
-mcp = FastMCP("FlowiseMCP-with-EnvAuth", dependencies=["requests"])
+mcp = FastMCP("FlowiseMCP-with-EnvAuth")
 
 
 @mcp.tool()
