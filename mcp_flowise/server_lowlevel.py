@@ -17,7 +17,6 @@ import sys
 import asyncio
 import json
 from typing import List, Dict, Any
-from dotenv import load_dotenv
 from mcp import types
 from mcp.server.lowlevel import Server
 from mcp.server.models import InitializationOptions
@@ -28,9 +27,6 @@ from mcp_flowise.utils import (
     normalize_tool_name,
     setup_logging,
 )
-
-# Load environment variables from .env if present
-load_dotenv()
 
 # Configure logging
 DEBUG = os.getenv("DEBUG", "").lower() in ("true", "1", "yes")

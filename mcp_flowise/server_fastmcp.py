@@ -8,12 +8,8 @@ and uses environment variables to determine the chatflow or assistant configurat
 import os
 import sys
 import json
-from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 from mcp_flowise.utils import flowise_predict, fetch_chatflows, redact_api_key, setup_logging
-
-# Load environment variables from .env if present
-load_dotenv()
 
 # Environment variables
 FLOWISE_API_KEY = os.getenv("FLOWISE_API_KEY", "")
