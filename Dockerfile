@@ -2,7 +2,7 @@
 FROM python:3.12-slim AS base
 
 # Install the uv package manager
-RUN pip install uvx
+RUN pip install uv
 
 # Set the working directory in the container
 WORKDIR /app
@@ -14,7 +14,7 @@ COPY . .
 RUN uvx sync --frozen --no-dev --no-editable
 
 # Expose the port the app runs on
-EXPOSE 8000
+EXPOSE 8080
 
 # Set environment variables required for running the MCP server
 ENV FLOWISE_API_KEY=your_api_key
